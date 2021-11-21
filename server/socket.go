@@ -22,7 +22,7 @@ func (c *Connection) ReadPump() {
 		return nil
 	})
 
-	fmt.Println("启动一个websocket，UserID：", c.userId)
+	fmt.Println("启动一个websocket，UserID：", c.UserId)
 
 	for {
 		_, message, err := c.ws.ReadMessage()

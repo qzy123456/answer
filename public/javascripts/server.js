@@ -56,11 +56,7 @@ $(document).ready(function() {
       TkBox;
 
   $("#joinRoom").click(function () { //加入房间
-    alert(11111)
     TkBox = $.ThinkBox.loading("正在进入房间");
-    console.log(socket)
-
-      alert(222)
       socket.send('{"Action":"JoinRoom","UserId":' + userId + ',"Params":{}}');
 
   });
@@ -249,7 +245,7 @@ $(document).ready(function() {
 
   function onDisconnect() { //连接服务器失败
     console.log("连接服务器失败");
-    $.ThinkBox.error('连接服务器失败', {'delayClose':0});
+    $.ThinkBox.error('连接服务器失败', {'delayClose':10000});
   }
 
 

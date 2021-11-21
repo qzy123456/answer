@@ -171,7 +171,7 @@ func GetAllExamId() ([]int, error) {
 	for _, v := range result {
 		ret = append(ret, v.ExamId)
 	}
-	fmt.Println(result)
+
 	return ret, nil
 }
 

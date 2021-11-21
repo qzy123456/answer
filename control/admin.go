@@ -5,7 +5,6 @@ import (
 
 	"github.com/vckai/GoAnswer/app"
 	"github.com/vckai/GoAnswer/model"
-	"github.com/vckai/GoAnswer/server"
 )
 
 func AdminIndex(context *app.Context) {
@@ -53,7 +52,6 @@ func AdminExam(context *app.Context) {
 		}
 
 		// 重新加载题目
-		server.SetReload(0)
 		context.Json(map[string]interface{}{"msg": "", "suc": 1})
 		context.End()
 	}

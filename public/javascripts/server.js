@@ -1,4 +1,7 @@
-
+String.prototype.format = function() {
+  var args = arguments;
+  return this.replace(/\{(\d+)\}/g, function(m, i) { return args[i]; });
+};
 $(document).ready(function() {
   var socket = new WebSocket("ws://" + host + "/ws");
     socket.onopen = function(evt) {

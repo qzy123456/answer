@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"math/rand"
 	"sync"
 	"time"
@@ -21,8 +22,8 @@ type Game struct {
 
 	exam      model.Exam //当前题目
 	ExamList  []int      //已完成的题库列表
-	Answer    chan int  //开始游戏chan
-	GameStart chan bool  //chan
+	Answer    chan int  //答题id的chan
+	GameStart chan bool  //chan,两个人都准备才开始
 	Over      chan bool  //离开游戏chan
 
 	lock sync.Mutex
@@ -52,9 +53,9 @@ func NewGame(r *room) *Game {
 }
 
 // 添加一个玩家到房间中
-func (game *Game) addPlayer(userId int) error {
+func (game *Game) addPlayer(userId int,conn *websocket.Conn) error {
 		//初始化一个玩家
-		player, err := NewPlayer(userId)
+		player, err := NewPlayer(userId,conn)
 		if err != nil {
 		fmt.Println("创建游戏用户失败：", err)
 		return err
@@ -62,23 +63,25 @@ func (game *Game) addPlayer(userId int) error {
 		//加入到房间列表
 		game.Users = append(game.Users, player)
 
-		var users []*onlineUser
+		var users []*Connection
 		for _, user := range game.Users { //返回给客户端的用户信息
-		u, err := h.GetOnlineUser(user.UserId)
-		if err != nil {
-			fmt.Println("获取在线用户失败：", err)
-			continue
-		}
-		users = append(users, u)
+			u, err := h.GetOnlineUser(user.UserId)
+			if err != nil {
+				fmt.Println("获取在线用户失败：", err)
+				continue
+			}
+			//同一房间的用户，拼接到一起
+			if u.RoomId == game.rm.Id {
+				users = append(users, u)
+			}
+
 	}
 
 	game.send("JoinRoom", map[string]interface{}{
 		"Room": map[string]interface{}{
 			"Id":     game.rm.Id,
-			"Name":   game.rm.Name,
 			"UserId": userId,
 			"Status": game.Status,
-			"Time":   game.rm.Time,
 			"Users":  game.Users,
 		},
 		"Users": users,
@@ -202,12 +205,12 @@ func (game *Game) GameOver(userId int) {
 				//})
 				h.sendToClient("OutRoom", user.UserId, map[string]interface{}{
 					"OverUser":     userId,
-					"OverUserName": u.Users.UserName,
+					"OverUserName": u.UserName,
 				})
 			} else {
 				h.sendToClient("OutRoom", user.UserId, map[string]interface{}{
 					"OverUser":     userId,
-					"OverUserName": u.Users.UserName,
+					"OverUserName": u.UserName,
 				})
 			}
 		}
@@ -259,13 +262,6 @@ func (game *Game) submit(userId,answer int) {
 	}
 }
 
-// 获取随机答案
-// 机器人答题时使用
-func (game *Game) getRandAnswer() int8 {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return int8(r.Intn(len(game.exam.ExamOption)))
-}
-
 // 获取当前答题的题目
 // 从mongodb中读取
 //
@@ -308,7 +304,6 @@ func (game *Game) getRandExamId() int {
 }
 
 // 往房间用户的客户端发送消息
-// 机器人不会发送
 func (game *Game) send(action string, res map[string]interface{}) {
 	for _, user := range game.Users {
 		if user.UserId == 0 {
@@ -335,6 +330,8 @@ func (game *Game) clearGame() {
 	for _, u := range game.Users {
 		u.Count = 0
 		u.Win = false
+		//从新入房间
+		h.connections[u.UserId].RoomId = 0
 	}
 
 	// 重置游戏状态

@@ -83,7 +83,7 @@ func (this *hub) reg(c *Connection) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
-	this.notloginconns[c.userId] = c
+	this.connections[c.UserId] = c
 }
 
 // 初始化登录
@@ -93,7 +93,7 @@ func (this *hub) login(param *simplejson.Json) {
 
 	userId, _ := param.Get("UserId").Int()
 
-	c, ok := this.notloginconns[userId]
+	c, ok := this.connections[userId]
 	if !ok {
 		fmt.Println("该用户尚未建立连接", userId)
 		return
@@ -104,12 +104,9 @@ func (this *hub) login(param *simplejson.Json) {
 		return
 	}
 
-	delete(this.notloginconns, userId)
+	delete(this.connections, userId)
 	this.connections[userId] = c
 
-	u := &onlineUser{user, 0} //在线用户信息, 房间ID
-
-	this.onlineUsers[userId] = u
 	fmt.Println("用户ID：", userId, "，姓名：", user.UserName, "，登录成功")
 }
 
@@ -120,7 +117,7 @@ func (this *hub) outRoom(param *simplejson.Json) {
 	fmt.Println("用户", userId, "退出房间")
 
 	this.lock.Lock()
-	user, ok := this.onlineUsers[userId]
+	user, ok := this.connections[userId]
 	if !ok {
 		fmt.Println("获取用户失败：", userId)
 		this.lock.Unlock()
@@ -144,19 +141,18 @@ func (this *hub) logout(c *Connection) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
-	fmt.Println("用户", c.userId, "退出登录")
+	fmt.Println("用户", c.UserId, "退出登录")
 
-	user, ok := this.onlineUsers[c.userId]
+	user, ok := this.connections[c.UserId]
 	if !ok {
-		fmt.Println("获取用户失败：", c.userId)
+		fmt.Println("获取用户失败：", c.UserId)
 		return
 	}
 
 	if user.RoomId > 0 {
-		this.getRoom(user.RoomId).Game.GameOver(c.userId)
+		this.getRoom(user.RoomId).Game.GameOver(c.UserId)
 	}
-	delete(this.connections, c.userId)
-	delete(this.onlineUsers, c.userId)
+	delete(this.connections, c.UserId)
 	close(c.send)
 }
 
@@ -171,7 +167,7 @@ func (this *hub) joinRoom(param *simplejson.Json) error {
 	}
 
 	if u.RoomId > 0 { //该用户已经加入房间中了
-		fmt.Println("禁止重复进入房间", userId)
+		fmt.Println("禁止重复进入房间", userId,u.RoomId)
 		return ErrUserInRoom
 	}
 
@@ -187,12 +183,13 @@ func (this *hub) joinRoom(param *simplejson.Json) error {
 
 		this.rooms[rm.Id] = rm
 	}
-	if err := rm.addPlayer(userId); err != nil {
+	conn := this.connections[userId] //获取当前用户的连接
+	if err := rm.addPlayer(userId,conn.ws); err != nil {
 		fmt.Println("添加用户进入房间失败：", userId, err)
 		return err
 	}
 	this.lock.Lock()
-	this.onlineUsers[userId].RoomId = rm.Id
+	this.connections[userId].RoomId = rm.Id
 	this.lock.Unlock()
 
 	return nil
@@ -206,7 +203,6 @@ func (this *hub) submitAnswer(param *simplejson.Json) error {
 		fmt.Println("接口参数错误", userId, answerId)
 		return ErrApiParam
 	}
-	fmt.Println(this.onlineUsers)
 	user, err := this.GetOnlineUser(userId)
 	if err != nil {
 		fmt.Println("获取在线用户失败：", err)
@@ -233,7 +229,6 @@ func (this *hub) ready(param *simplejson.Json) error {
 		fmt.Println("接口参数错误，缺少USERID")
 		return ErrApiParam
 	}
-	fmt.Println(this.onlineUsers)
 	user, err := this.GetOnlineUser(userId)
 	if err != nil {
 		fmt.Println("获取在线用户失败，", err, userId)
@@ -262,11 +257,11 @@ func (this *hub) getClient(userId int) *Connection {
 	return c
 }
 
-func (this *hub) GetOnlineUser(userId int) (*onlineUser, error) {
+func (this *hub) GetOnlineUser(userId int) (*Connection, error) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
-	u, ok := this.onlineUsers[userId]
+	u, ok := this.connections[userId]
 	if !ok {
 		return nil, ErrNotExistsOnlineUser
 	}
@@ -278,18 +273,18 @@ func (this *hub) DelOnlineUser(userId int)  {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
-	_, ok := this.onlineUsers[userId]
+	_, ok := this.connections[userId]
 	if ok {
-		delete(this.onlineUsers,userId)
+		delete(this.connections,userId)
 	}
 
 }
 // 添加用户到在线列表中
-func (this *hub) addOnlineUser(user *onlineUser) error {
+func (this *hub) addOnlineUser(user *Connection) error {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
-	this.onlineUsers[user.UserId] = user //添加到在线用户信息
+	this.connections[user.UserId] = user //添加到在线用户信息
 
 	return nil
 }
@@ -326,13 +321,12 @@ func (this *hub) getRooms() map[uint32]*room {
 }
 
 // 删除某个房间
-func (this *hub) delRoom(roomId uint32, rebUserId int) {
+func (this *hub) delRoom(roomId uint32) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
 	fmt.Println("删除房间", roomId, "删除机器人信息", roomId)
 	delete(this.rooms, roomId)
-	delete(this.onlineUsers, rebUserId) //删除机器人用户信息
 }
 
 // 发送消息到指定客户端

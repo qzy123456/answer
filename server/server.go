@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gorilla/websocket"
+	"sync"
 	"time"
 
 	"github.com/vckai/GoAnswer/model"
@@ -18,6 +20,243 @@ var (
 	ErrUserNotExtsisRoom   = errors.New("用户不在房间中")
 	ErrRoomNotExists       = errors.New("房间不存在")
 )
+const (
+	writeWait                     = 10 * time.Second
+	pongWait                      = 30 * time.Second
+	pingPeriod                    =  (pongWait *9) /10
+	messageSize                   = 512
+	roomMaxUser                   = 2
+	playGameTime    time.Duration = 20 //每局游戏时间
+)
+
+type Room struct {
+	id      int
+	Clients map[int]*websocket.Conn
+	timer   int //每步20秒
+	status  int //0空，1，有1个人，2，有2个人,为2个人就准备好了
+	battle  *player
+	mu      sync.Mutex
+}
+// 房间用户信息
+type player struct {
+	UserId int
+	Status bool  //用户准备状态(true准备中, false尚未准备)
+	Win    bool  //用户是否胜利
+	Count  int16 //答对题数
+	Conn   *websocket.Conn
+	lock    sync.Mutex
+}
+
+// api返回
+type apiParam struct {
+	Action string
+	UserId int
+	Params map[string]interface{}
+	Time   int64
+}
+
+// 连接管理，在线用户
+type Connection struct {
+	UserId int
+	UserName string
+	ws     *websocket.Conn
+	send   chan []byte
+	RoomId int
+}
+//全局游戏处理
+type hub struct {
+	register      chan *Connection   //登陆时候的channel
+	unregister    chan *Connection   //退出登陆的chanel
+	connections   map[int]*Connection
+	broadcast     chan *simplejson.Json  //消息
+	examids       []int                //所有试卷题目id
+	rooms         []*Room
+	r             *Room
+	mu            sync.RWMutex
+	lock          sync.Mutex
+}
+
+var h = &hub{
+	register:      make(chan *Connection,100),
+	unregister:    make(chan *Connection,100),
+	connections:    make(map[int]*Connection),
+	broadcast:     make(chan *simplejson.Json),
+
+}
+
+//初始化，生成房间
+func init()  {
+
+	h.rooms = make([]*Room, 8)
+	for i := range h.rooms {
+		fmt.Println("生成房间",i)
+		h.rooms[i] = &Room{
+			id:      i+1,
+			Clients: make(map[int]*websocket.Conn, 2),
+		}
+	}
+}
+
+//根据房间id，查询信息
+func (w *hub) GetById(id int) *Room {
+	return w.rooms[id]
+}
+
+func (w *hub) addRooms() {
+
+	w.rooms = append(w.rooms, &Room{id: len(w.rooms), Clients: make(map[int]*websocket.Conn, 2)})
+
+}
+
+//查找正在等待匹配的房间
+func (w *hub) WaitingRoom() int {
+	w.mu.RLock()
+	for _, v := range w.rooms {
+		if v.status == 1 {
+			w.mu.RUnlock()
+			return v.id
+		}
+	}
+	return -1
+}
+//找到第一个空房间
+func (w *hub) FirstEmptyRoom() int {
+	w.mu.RLock()
+	for _, v := range w.rooms {
+		if v.status == 0 {
+			w.mu.RUnlock()
+			return v.id
+		}
+	}
+	return -1
+}
+
+//当前用户进房间
+func (w *hub) inRoom(c *Connection) (roomid int, err error) {
+	waitingRoom := w.WaitingRoom()
+	fmt.Println("走到了进房间的逻辑，",waitingRoom)
+	if waitingRoom == -1 {
+		//没有等待的房间
+		emptyRoom := w.FirstEmptyRoom()
+		fmt.Println("emptyRoom，",emptyRoom)
+		if emptyRoom == -1 {
+			//人居然满了我是不信的
+			//添加房间
+			w.addRooms()
+			return w.inRoom(c)
+		} else {
+			//用户触发进入房间的逻辑
+			_, err = w.rooms[emptyRoom].ClientIn(c)
+		}
+		roomid = emptyRoom
+		//把自己的房间id更新
+		c.RoomId = roomid
+
+	} else {
+		fmt.Println("waitingRoom，",waitingRoom)
+		//用户触发进入房间的逻辑
+		_, err = w.rooms[waitingRoom].ClientIn(c)
+		roomid = waitingRoom
+		//把自己的房间id更新
+		c.RoomId = roomid
+
+	}
+	return roomid, err
+}
+//用户进入
+func (r *Room) ClientIn(c *Connection) (bool, error) {
+	ok := false
+	if r.status > 2 {
+		return false, errors.New("this room is full")
+	}
+
+	r.mu.Lock()
+	r.Clients[c.UserId] = c.ws
+	r.mu.Unlock()
+	r.UpdateStatus()
+	if r.status == 2 {
+		ok = true
+	}
+	return ok, nil
+}
+//是否满2人  满2人就可以开展
+func (r *Room) UpdateStatus() {
+	r.mu.Lock()
+	r.status = len(r.Clients)
+	r.mu.Unlock()
+}
+func (r *Room) initClient() {
+	r.mu.Lock()
+	r.Clients = make(map[int]*websocket.Conn, 2)
+	r.mu.Unlock()
+}
+//重置房间信息
+func (r *Room) Clear() {
+	r.initClient()
+	r.UpdateStatus()
+}
+
+// 初始化一个新连接
+func NewConn(userId int, ws *websocket.Conn) *Connection {
+	//存在就替换
+	c := &Connection{
+		UserId: userId,
+		ws:     ws,
+		send:   make(chan []byte, 256),
+		RoomId: 0 ,
+	}
+
+	//每次新登陆都替换成最新的链接
+	if  _, ok  := h.connections[userId];ok{
+		fmt.Println("存在",userId)
+      delete(h.connections,userId)
+	}
+	h.connections[userId] = c
+
+
+	//chan通知有人注册
+	h.register <- c
+
+	return c
+}
+
+
+// 创建一个玩家
+// userId  玩家ID
+func NewPlayer(userId int,conn *websocket.Conn) (*player, error) {
+	return &player{
+		UserId:  userId,
+		Status:  false,
+		Win:     false,
+		Conn:    conn,
+		Count:   0,
+	}, nil
+}
+
+
+// 用户准备状态处理
+func (p *player) ready(status bool) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.Status = status
+}
+
+// 答对题数
+func (p *player) count() {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.Count++
+}
+
+// 是否胜利
+func (p *player) win(isWin bool) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.Win = isWin
+}
 //初始化服务器服务器，获取所有题目
 func InitServer() {
 	h.examids, _ = model.GetAllExamId()
@@ -38,7 +277,7 @@ func (this *hub) run() {
 	for {
 		select {
 		case c := <-this.register:  //登陆
-			this.reg(c)
+			this.login(c)
 		case c := <-this.unregister:  //退出
 			this.logout(c)
 		case param := <-this.broadcast: //消息
@@ -55,59 +294,35 @@ func (this *hub) handle(param *simplejson.Json) {
 		return
 	}
 
-	if param.Get("Action").MustString() != "Login" {
-		c := this.getClient(userId)
-		if c == nil {
-			fmt.Println("尚未登录, 无法使用该接口：", param)
-			return
-		}
-	}
-
 	switch param.Get("Action").MustString() {
-	case "Login": //登录
-		this.login(param)
-	case "JoinRoom": //加入房间
-		this.joinRoom(param)
 	case "Submit": //提交答案
 		this.submitAnswer(param)
 	case "OutRoom": //退出房间
 		this.outRoom(param)
-	case "Ready": //用户准备
-		this.ready(param)
 	}
 }
 
-// 保存socket连接
-// 该链接尚属于未登陆状态
-func (this *hub) reg(c *Connection) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
-	this.connections[c.UserId] = c
-}
 
 // 初始化登录
-func (this *hub) login(param *simplejson.Json) {
+func (this *hub) login(c *Connection) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
-	userId, _ := param.Get("UserId").Int()
-
-	c, ok := this.connections[userId]
+	c, ok := this.connections[c.UserId]
 	if !ok {
-		fmt.Println("该用户尚未建立连接", userId)
+		fmt.Println("该用户尚未建立连接", c.UserId)
 		return
 	}
-	user, err := model.GetUserById(userId)
-	if err != nil {
-		fmt.Println("没有查找到该用户", userId, err)
-		return
-	}
+	//进房间
+	roomid,_ :=this.inRoom(c)
 
-	delete(this.connections, userId)
-	this.connections[userId] = c
+	fmt.Println("用户ID：", c.UserId, "，姓名：", c.UserName, "，登录成功;房间id：",roomid)
+	//下发消息
+	this.sendToClient("JoinRoom", c.UserId, map[string]interface{}{
+			"OverUser":     c.UserId,
+			"OverUserName": c.UserId,
+		})
 
-	fmt.Println("用户ID：", userId, "，姓名：", user.UserName, "，登录成功")
 }
 
 // 退出房间
@@ -128,11 +343,11 @@ func (this *hub) outRoom(param *simplejson.Json) {
 	this.lock.Unlock()
 
 	if inRoomId > 0 {
-		this.getRoom(inRoomId).Game.GameOver(userId)
-		this.sendToClient("OutRoom", userId, map[string]interface{}{
-			"OverUser":     userId,
-			"OverUserName": user.UserName,
-		})
+		//this.getRoom(inRoomId).Game.GameOver(userId)
+		//this.sendToClient("OutRoom", userId, map[string]interface{}{
+		//	"OverUser":     userId,
+		//	"OverUserName": user.UserName,
+		//})
 	}
 }
 
@@ -143,57 +358,15 @@ func (this *hub) logout(c *Connection) {
 
 	fmt.Println("用户", c.UserId, "退出登录")
 
-	user, ok := this.connections[c.UserId]
+	_, ok := this.connections[c.UserId]
 	if !ok {
 		fmt.Println("获取用户失败：", c.UserId)
 		return
-	}
-
-	if user.RoomId > 0 {
-		this.getRoom(user.RoomId).Game.GameOver(c.UserId)
 	}
 	delete(this.connections, c.UserId)
 	close(c.send)
 }
 
-// 进入房间
-func (this *hub) joinRoom(param *simplejson.Json) error {
-	userId := param.Get("UserId").MustInt()
-
-	u, err := this.GetOnlineUser(userId)
-	if err != nil {
-		fmt.Println("用户UID", userId, err)
-		return err
-	}
-
-	if u.RoomId > 0 { //该用户已经加入房间中了
-		fmt.Println("禁止重复进入房间", userId,u.RoomId)
-		return ErrUserInRoom
-	}
-
-	//查找房间
-	rm := this.findRoom()
-
-	if rm == nil { //没有房间则新建一个
-		rm, err = NewRoom()
-		if err != nil {
-			fmt.Println("创建房间失败：", err)
-			return err
-		}
-
-		this.rooms[rm.Id] = rm
-	}
-	conn := this.connections[userId] //获取当前用户的连接
-	if err := rm.addPlayer(userId,conn.ws); err != nil {
-		fmt.Println("添加用户进入房间失败：", userId, err)
-		return err
-	}
-	this.lock.Lock()
-	this.connections[userId].RoomId = rm.Id
-	this.lock.Unlock()
-
-	return nil
-}
 
 // 提交答案
 func (this *hub) submitAnswer(param *simplejson.Json) error {
@@ -212,49 +385,30 @@ func (this *hub) submitAnswer(param *simplejson.Json) error {
 		fmt.Println("该用户不在房间中", user.UserId)
 		return ErrUserNotExtsisRoom
 	}
-	r := this.getRoom(user.RoomId)
+	r := this.GetById(user.RoomId)
 	if r == nil {
 		fmt.Println("获取房间失败：", user.RoomId)
 		return ErrRoomNotExists
 	}
-	r.Game.Answer <- userId*10000+answerId
+	//r.Answer <- userId*10000+answerId
 
 	return nil
 }
 
-// 用户准备
-func (this *hub) ready(param *simplejson.Json) error {
-	userId := param.Get("UserId").MustInt()
-	if userId == 0 {
-		fmt.Println("接口参数错误，缺少USERID")
-		return ErrApiParam
-	}
-	user, err := this.GetOnlineUser(userId)
-	if err != nil {
-		fmt.Println("获取在线用户失败，", err, userId)
-		return ErrNotExistsOnlineUser
-	}
-	r := this.getRoom(user.RoomId)
-	if r == nil {
-		fmt.Println("获取房间失败", user.RoomId)
-		return ErrRoomNotExists
-	}
-	err = r.userReady(userId)
-
-	return err
-}
 
 // 获取socket链接
 func (this *hub) getClient(userId int) *Connection {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
-	c, ok := this.connections[userId]
-	if !ok {
-		fmt.Println("没有获取到该socket")
-		return nil
+	if _,ok := this.connections[userId];!ok{
+			fmt.Println("没有获取到该socket")
+			return nil
+	}else {
+		fmt.Println("获取到该socket",this.connections[userId])
 	}
-	return c
+
+	return this.connections[userId]
 }
 
 func (this *hub) GetOnlineUser(userId int) (*Connection, error) {
@@ -269,92 +423,30 @@ func (this *hub) GetOnlineUser(userId int) (*Connection, error) {
 	return u, nil
 }
 
-func (this *hub) DelOnlineUser(userId int)  {
-	this.lock.Lock()
-	defer this.lock.Unlock()
 
-	_, ok := this.connections[userId]
-	if ok {
-		delete(this.connections,userId)
-	}
 
-}
-// 添加用户到在线列表中
-func (this *hub) addOnlineUser(user *Connection) error {
-	this.lock.Lock()
-	defer this.lock.Unlock()
 
-	this.connections[user.UserId] = user //添加到在线用户信息
 
-	return nil
-}
-
-// 查找未满人的房间
-func (this *hub) findRoom() *room {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
-	for _, val := range this.rooms {
-		if val.Game.Status == 0 && len(val.Game.Users) < roomMaxUser{
-			return val
-		}
-	}
-	return nil
-}
 
 // 获取房间信息
-func (this *hub) getRoom(roomId uint32) *room {
+func (this *hub) getRoom(roomId int) *Room {
 	for _, val := range this.rooms {
-		if val.Id == roomId {
+		if val.id == roomId {
 			return val
 		}
 	}
 	return nil
-}
-
-// 房间列表
-func (this *hub) getRooms() map[uint32]*room {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
-	return this.rooms
-}
-
-// 删除某个房间
-func (this *hub) delRoom(roomId uint32) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
-	fmt.Println("删除房间", roomId, "删除机器人信息", roomId)
-	delete(this.rooms, roomId)
 }
 
 // 发送消息到指定客户端
 func (this *hub) sendToClient(action string, userId int, data map[string]interface{}) {
 	c := this.getClient(userId)
+	fmt.Println("下发通知",c.ws)
 	if c == nil {
 		fmt.Println("该用户不存在", userId)
 		return
 	}
 	c.send <- this.genRes(action, userId, data)
-}
-
-// 回收房间
-func (this *hub) gcRoom() {
-	for {
-		this.clearRoom()
-		time.Sleep(5 * time.Second)
-	}
-}
-
-// 删除空房间
-func (this *hub) clearRoom() {
-	for _, room := range this.rooms {
-		if room.Game.Status == 0 && len(room.Game.Users) == 1 {
-			room.Close()
-			delete(this.rooms, room.Id)
-		}
-	}
 }
 
 // 统一返回的数据结构

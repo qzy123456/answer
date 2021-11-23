@@ -16,14 +16,8 @@ func main() {
 
 	a := app.NewApp()
 
-	a.Get("/", control.Index)
-	a.Route("POST,GET", "/reg/", control.Register)
-	a.Route("POST,GET", "/login/", control.Login)
-	a.Get("/logout/", control.Logout)
+	a.Route("POST,GET", "/", control.Index)
 	a.Get("/ws/", control.Ws)
-
-	a.Get("/admin/", control.AdminIndex)
-	a.Route("POST,GET", "/addExam/", control.AdminExam)
 
 	a.Static(func(context *app.Context) { //静态文件处理
 		static := "public"

@@ -10,7 +10,7 @@ type room struct {
 	Id     uint32 //房间ID
 	Name   string //房间名称
 	Time   int64  //房间创建时间
-	Game *Game
+	Game   *Game
 }
 
 // 创建房间
@@ -21,6 +21,7 @@ func NewRoom() (*room, error) {
 		Name:   fmt.Sprintf("room_%d", rid),
 		Time:   time.Now().Unix(),
 	}
+	//新创建一个房间，就会初始化一个新游戏
 	r.Game = NewGame(r)
 
 	return r, nil

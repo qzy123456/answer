@@ -1,32 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>用户登陆</title>
+    <title>请起一个昵称</title>
     <link href="/public/stylesheets/bootstrap.min.css" rel="stylesheet" media="screen">
 </head>
 <body screen_capture_injected="true">
 <div class="container-fluid">
-    <form class="form-horizontal" method="post" action="/login">
+    <form class="form-horizontal" method="post" action="/">
         <fieldset>
-            <legend>用户登陆</legend>
-            {{if .Msg}}
-            <div class="alert alert-error">{{.Msg}}</div>
-            {{end}}
-            <div class="control-group">
-                <label class="control-label" for="user">用户名</label>
+            <legend>用户昵称</legend>
+            <div class="form-actions">
+                <label class="control-label" for="user">昵称</label>
                 <div class="controls">
                     <input type="text" class="input-xlarge" id="user" name="user" required="true" />
                 </div>
             </div>
-            <div class="control-group">
-                <label class="control-label" for="pwd">密码</label>
-                <div class="controls">
-                    <input type="password" class="input-xlarge" id="pwd" name="pwd" required="true" />
-                </div>
-            </div>
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">登陆</button>
-                <a href="/reg">注册</a>
             </div>
         </fieldset>
     </form>

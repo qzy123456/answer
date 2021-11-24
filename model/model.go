@@ -13,7 +13,6 @@ var (
 	mondb  *mgo.Session
 	currdb *mgo.Database
 
-	UserTable = "Users"
 )
 
 type Model struct {
@@ -37,11 +36,6 @@ func (this *Model) connect(url string) {
 	currdb = mondb.DB("Vckai")
 }
 
-type Status struct {
-	Id_       bson.ObjectId `bson:"_id"`
-	UserIndex int
-	ExamIndex int
-}
 
 type Users struct {
 	UserId      int
@@ -56,48 +50,6 @@ type Exam struct {
 	ExamAnwser   int
 	ExamResolve  string
 	ExamTime     time.Time
-}
-
-/**
- * 获取状态
- */
-func GetStatus() Status {
-	c := currdb.C("status")
-	status := Status{}
-	err := c.Find(nil).One(&status)
-	if err != nil {
-		Id_ := bson.NewObjectId()
-		c.Insert(&Status{Id_: Id_, UserIndex: 0, ExamIndex: 0})
-		status.Id_ = Id_
-		status.UserIndex = 0
-	}
-	return status
-}
-
-/**
- * add exam..
- */
-func AddExam(question string, options []string, anwser int, resolve string) (int, error) {
-	c := currdb.C("exam")
-	status := GetStatus()
-
-	index := status.ExamIndex + 1
-
-	err := c.Insert(&Exam{
-		Id_:          bson.NewObjectId(),
-		ExamId:       index,
-		ExamQuestion: question,
-		ExamOption:   options,
-		ExamAnwser:   anwser,
-		ExamResolve:  resolve,
-		ExamTime:     time.Now(),
-	})
-	if err == nil { //题目ID累加
-		c2 := currdb.C("status")
-		c2.Update(nil, bson.M{"$inc": bson.M{"examindex": 1}})
-	}
-
-	return index, err
 }
 
 /**

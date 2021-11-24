@@ -38,6 +38,7 @@ func NewGame(r *room) *Game {
 		Over:      make(chan bool),
 		rm:        r,
 		ExamList:  make([]int, 0),
+		Users:    make([]*player,0),
 	}
 
 	go func(game *Game) {
@@ -95,17 +96,10 @@ func (game *Game) addPlayer(userId int) error {
 	return nil
 }
 
-// 用户准备
+// 用户准备，进房间自动准备
 func (game *Game) userReady(userId int) error {
 	isStart := false
-	for _, user := range game.Users {
-		if userId == user.UserId {
-			user.ready(true)
-		}
-		//else {
-		//	isStart = user.Status
-		//}
-	}
+	//进房间自动准备
     if len(game.Users) >= 2{
     	isStart = true
 	}
@@ -118,25 +112,19 @@ func (game *Game) userReady(userId int) error {
 	return nil
 }
 
-// 判断用户是否准备状态
+// 判断用户是否准备状态,也就是房间够不够2人
 func (game *Game) checkIsReady() bool {
-
+	//进房间自动准备，不存在还需要准备
 	if len(game.Users) != roomMaxUser {
 		fmt.Println("人数不足", roomMaxUser, "人")
 		return false
 	}
-	for _, user := range game.Users {
-		if user.Status == false {
-			fmt.Println("用户", user.UserId, "还未准备")
-			return false
-		}
-	}
-
 	return true
 }
 
 // 开始游戏
 func (game *Game) playGame() {
+	//检查是不是够2人
 	if !game.checkIsReady() {
 		return
 	}
@@ -195,33 +183,50 @@ func (game *Game) GameOver(userId int) {
 	var delkey int
 	for key, user := range game.Users {
 		if user.UserId == userId {
+			log.Printf("退出房间找到了%v"	,user.UserId)
 			delkey = key
-		} else {
-			u, err := h.GetOnlineUser(userId)
-			if err != nil {
-				fmt.Println("获取用户失败：", err)
-				continue
-			}
-
-			if game.Status == 1 { // 游戏中的状态
-				//game.Over <- true
-				//h.sendToClient("GameOver", user.UserId, map[string]interface{}{
-				//	"OverUser":     userId,
-				//	"OverUserName": u.Users.UserName,
-				//})
-				h.sendToClient("OutRoom", user.UserId, map[string]interface{}{
-					"OverUser":     userId,
-					"OverUserName": u.Users.UserName,
-				})
-			} else {
-				h.sendToClient("OutRoom", user.UserId, map[string]interface{}{
-					"OverUser":     userId,
-					"OverUserName": u.Users.UserName,
-				})
-			}
+			//u, err := h.GetOnlineUser(userId)
+			//if err != nil {
+			//	fmt.Println("获取用户失败：", err)
+			//	continue
+			//}
+			//
+			//if game.Status == 1 { // 游戏中的状态
+			//	game.Over <- true
+			//	h.sendToClient("GameOver", user.UserId, map[string]interface{}{
+			//		"OverUser":     userId,
+			//		"OverUserName": u.Users.UserName,
+			//	})
+			//} else {
+			//	h.sendToClient("OutRoom", user.UserId, map[string]interface{}{
+			//		"OverUser":     userId,
+			//		"OverUserName": u.Users.UserName,
+			//	})
+			//}
 		}
+		//else {
+			//log.Printf("退出房间没有找到")
+			//u, err := h.GetOnlineUser(userId)
+			//if err != nil {
+			//	fmt.Println("获取用户失败：", err)
+			//	continue
+			//}
+			//
+			//if game.Status == 1 { // 游戏中的状态
+			//	game.Over <- true
+			//	h.sendToClient("GameOver", user.UserId, map[string]interface{}{
+			//		"OverUser":     userId,
+			//		"OverUserName": u.Users.UserName,
+			//	})
+			//} else {
+			//	h.sendToClient("OutRoom", user.UserId, map[string]interface{}{
+			//		"OverUser":     userId,
+			//		"OverUserName": u.Users.UserName,
+			//	})
+			//}
+		//}
 	}
-	if delkey >= 0 {
+	if delkey >= 0 && game.Users != nil{
 		fmt.Println("将用户", userId, "从房间", game.rm.Id, "中移除")
 		game.Users = append(game.Users[:delkey], game.Users[delkey+1:]...)
 		if len(game.Users) == 0 {
@@ -268,13 +273,6 @@ func (game *Game) submit(userId,answer int) {
 	}
 }
 
-// 获取随机答案
-// 机器人答题时使用
-func (game *Game) getRandAnswer() int8 {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return int8(r.Intn(len(game.exam.ExamOption)))
-}
-
 // 获取当前答题的题目
 // 从mongodb中读取
 //
@@ -316,18 +314,6 @@ func (game *Game) getRandExamId() int {
 	return 0
 }
 
-// 往房间用户的客户端发送消息
-// 机器人不会发送
-func (game *Game) send(action string, res map[string]interface{}) {
-	for _, user := range game.Users {
-		if user.UserId == 0 {
-			continue
-		}
-		log.Printf("发消息%v",user)
-		h.sendToClient(action, user.UserId, res)
-	}
-}
-
 // 游戏结束
 func (game *Game) endGame() {
 	game.clearGame()
@@ -348,7 +334,7 @@ func (game *Game) clearGame() {
 	}
 
 	// 重置游戏状态
-	game.rm = nil //房间信息
+	//game.rm = nil //房间信息
 	game.exam = model.Exam{}
 	game.Status = 0
 }
@@ -358,4 +344,15 @@ func (game *Game) Close() {
 	close(game.Answer)
 	close(game.GameStart)
 	close(game.Over)
+}
+
+// 往房间用户的客户端发送消息
+func (game *Game) send(action string, res map[string]interface{}) {
+	for _, user := range game.Users {
+		if user.UserId == 0 {
+			continue
+		}
+		log.Printf("发消息%v",user)
+		h.sendToClient(action, user.UserId, res)
+	}
 }

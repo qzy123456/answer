@@ -84,26 +84,15 @@
         }
 
         var gameStatus = false,
-            onRoom = false,
             GameTimeStop = false,
             TkBox;
 
-        $("#joinRoom").click(function () { //加入房间
-
-            TkBox = $.ThinkBox.loading("正在进入房间");
-            console.log(socket)
-
-            socket.send('{"Action":"JoinRoom","UserId":' + userId + ',"Params":{}}');
-
-        });
-
-
         function ready() { //准备
             $("#user_" + userId + ' .gameStatus').html("准备中");
-            var socket = new WebSocket("ws://" + host + "/ws");
-            socket.onopen = function(evt) {
+            // var socket = new WebSocket("ws://" + host + "/ws?userId="+userId);
+            // socket.onopen = function(evt) {
                 socket.send('{"Action":"Ready","UserId":' + userId + ',"Params":{}}');
-            }
+            //}
         }
 
         $("#outRoom").click(function () { //退出房间
@@ -117,11 +106,9 @@
             $("#users .thumbnails").html("");
             var users = data.Params.Users;
             var otherUser;
+            var str;
             for(var i=0; i < users.length; i++) {
-                $("#users .thumbnails").append('' +
-                    '<li class="text-center" id="user_{0}" style="{4}">' +
-                    '<img class="thumbnail" data-src="/public/images/header.jpg" alt="{1}" src="/public/images/header.jpg">{2}' +
-                    '<div class="gameStatus"></div><div id="lamp_{3}" class="lamp"></li>'.format(users[i].UserId, users[i].UserName, users[i].UserName, users[i].UserId, users[i].UserId != userId ? 'float:right; margin-right:20px;' : ''));
+                $("#users .thumbnails").append('<li class="text-center" id="user_{0}" style="{4}"><img class="thumbnail" data-src="/public/images/header.jpg" alt="{1}" src="/public/images/header.jpg">{2}<div class="gameStatus"></div><div id="lamp_{3}" class="lamp"></li>'.format(users[i].UserId, users[i].UserName, users[i].UserName, users[i].UserId, users[i].UserId != userId ? 'float:right; margin-right:20px;' : ''));
 
                 if( users[i].UserId != userId ) {
                     otherUser = users[i];
@@ -130,7 +117,7 @@
 
             var rmUsers = data.Params.Room.Users;
             for(var i=0; i < rmUsers.length; i++) {
-                var str = rmUsers[i].Status == 1 ? '准备中' : (rmUsers[i].UserId != userId ? '尚未准备' : '<a href="javascript:ready();">开始游戏</a>');
+                var str = rmUsers.length >= 2 ? '准备中' : (rmUsers[i].UserId != userId ? '尚未准备' : '<a href="javascript:ready();">开始游戏</a>');
                 $("#user_" + rmUsers[i].UserId + " .gameStatus").html(str);
             }
 
@@ -269,6 +256,7 @@
 
         //接收准备消息
         function onReady(data) {
+            console.log(data.Params.UserId)
             $("#user_" + data.Params.UserId + ' .gameStatus').html("准备中");
         }
 

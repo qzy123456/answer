@@ -38,7 +38,7 @@ func GetServer() *hub {
 // 心跳检测
 func (this *hub) HeartBeat() {
 	fmt.Println("新设计的心跳包")
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(20 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -114,7 +114,7 @@ func (this *hub) reg(c *Connection) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
-	this.notloginconns[c.userId] = c
+	this.connections[c.userId] = c
 }
 
 // 初始化登录
@@ -125,7 +125,7 @@ func (this *hub) login(param *simplejson.Json) {
 	userId, _ := param.Get("UserId").Int()
 	userName, _ := param.Get("UserName").String()
 
-	c, ok := this.notloginconns[userId]
+	_, ok := this.connections[userId]
 	if !ok {
 		fmt.Println("该用户尚未建立连接", userId)
 		return
@@ -134,9 +134,6 @@ func (this *hub) login(param *simplejson.Json) {
 		UserId:userId,
 		UserName:userName,
 	}
-
-	delete(this.notloginconns, userId)
-	this.connections[userId] = c
 
 	u := &onlineUser{user, 0} //在线用户信息, 房间ID
 
@@ -167,6 +164,7 @@ func (this *hub) login(param *simplejson.Json) {
 		return
 	}
 	this.onlineUsers[userId].RoomId = rm.Id
+	//下发消息
 	fmt.Println("用户加入房间成功：", rm.Id)
 }
 

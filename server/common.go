@@ -17,7 +17,7 @@ const (
 	pingPeriod                    =  (pongWait *9) /10
 	messageSize                   = 512
 	roomMaxUser                   = 2
-	playGameTime    time.Duration = 20 //每局游戏时间
+	playGameTime    time.Duration = 5 //每局游戏时间
 )
 
 var (
@@ -49,7 +49,6 @@ type hub struct {
 	register      chan *Connection   //登陆时候的channel
 	unregister    chan *Connection   //退出登陆的chanel
 	connections   map[int]*Connection  //登陆成功的连接
-	notloginconns map[int]*Connection  //还未登陆成功
 	broadcast     chan *simplejson.Json  //消息
 	onlineUsers   map[int]*onlineUser   //在线用户
 	rooms         map[uint32]*room     //room 列表
@@ -62,7 +61,6 @@ var h = &hub{
 	register:      make(chan *Connection),
 	unregister:    make(chan *Connection),
 	connections:   make(map[int]*Connection),
-	notloginconns: make(map[int]*Connection),
 	onlineUsers:   make(map[int]*onlineUser),
 	broadcast:     make(chan *simplejson.Json),
 	rooms:         make(map[uint32]*room,10),

@@ -52,7 +52,6 @@ type hub struct {
 	broadcast     chan *simplejson.Json  //消息
 	onlineUsers   map[int]*onlineUser   //在线用户
 	rooms         map[uint32]*room     //room 列表
-	examids       []int                //所有试卷题目id
 
 	lock sync.RWMutex
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path"
@@ -43,9 +44,14 @@ func main() {
 		http.ServeFile(context.Response, context.Request, url)
 		context.IsEnd = true
 	})
-	model.NewModel(a.Config().MustValue("murl", "127.0.0.1")) //连接到mongodb
+	model.NewModel(a.Config().MustValue("mysql_url", "127.0.0.1"),
+		a.Config().MustValue("mysql_user", "root"),
+		a.Config().MustValue("mysql_pass", "root"),
+		a.Config().MustValue("mysql_port", "3306"),
+		a.Config().MustValue("mysql_db", "examination"),
+		) //连接到mysql
 
 	server.InitServer()
-
+    fmt.Println(model.GetAllExamId())
 	a.Run()
 }

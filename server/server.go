@@ -22,12 +22,6 @@ var (
 )
 //初始化服务器服务器，获取所有题目
 func InitServer() {
-	h.examids, _ = model.GetAllExamId()
-
-	if len(h.examids) == 0 {
-		fmt.Println("没有找到题目")
-	}
-	fmt.Println(h.examids)
 	go h.run()
 }
 

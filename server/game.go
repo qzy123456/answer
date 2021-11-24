@@ -20,12 +20,12 @@ type Game struct {
 	Users  []*player //房间用户列表
 	Status int8      //房间状态(0等待1游戏中2满人)
 
-	exam      model.Exam //当前题目
+	exam      map[int]model.KsQuestion //当前题目
 	ExamList  []int      //已完成的题库列表
 	Answer    chan int  //开始游戏chan
 	GameStart chan bool  //chan
 	Over      chan bool  //离开游戏chan
-
+	examids   []int
 	lock sync.RWMutex
 }
 
@@ -39,7 +39,11 @@ func NewGame(r *room) *Game {
 		rm:        r,
 		ExamList:  make([]int, 0),
 		Users:    make([]*player,0),
+		exam:     make(map[int]model.KsQuestion,0),
+		examids:  make([]int,0),
 	}
+	//查询所有的题目
+    game.exam ,_ = model.GetAllExamId()
 
 	go func(game *Game) {
 		for {
@@ -130,13 +134,12 @@ func (game *Game) playGame() {
 	}
 	exam, err := game.getExam()
 	if err != nil {
-		fmt.Println("没有找到题目")
+		fmt.Println("没有找到题目",err)
 		game.endGame()
 		return
 	}
-	game.exam = exam
 	// 添加该题进入过滤slice
-	game.ExamList = append(game.ExamList, exam.ExamId)
+	game.ExamList = append(game.ExamList, exam.Id)
 
 
 	if game.Status == 0 { // 开始一局游戏
@@ -185,24 +188,6 @@ func (game *Game) GameOver(userId int) {
 		if user.UserId == userId {
 			log.Printf("退出房间找到了%v"	,user.UserId)
 			delkey = key
-			//u, err := h.GetOnlineUser(userId)
-			//if err != nil {
-			//	fmt.Println("获取用户失败：", err)
-			//	continue
-			//}
-			//
-			//if game.Status == 1 { // 游戏中的状态
-			//	game.Over <- true
-			//	h.sendToClient("GameOver", user.UserId, map[string]interface{}{
-			//		"OverUser":     userId,
-			//		"OverUserName": u.Users.UserName,
-			//	})
-			//} else {
-			//	h.sendToClient("OutRoom", user.UserId, map[string]interface{}{
-			//		"OverUser":     userId,
-			//		"OverUserName": u.Users.UserName,
-			//	})
-			//}
 		}
 		//else {
 			//log.Printf("退出房间没有找到")
@@ -243,7 +228,8 @@ func (game *Game) submit(userId,answer int) {
 	}
 	isOk := false
 	// 是否答对
-	if game.exam.ExamAnwser == answer {
+	//TODO
+	if game.exam[1].AnswerId == answer {
 		isOk = true
 	}
 	isEnd := false //是否结束了
@@ -255,7 +241,7 @@ func (game *Game) submit(userId,answer int) {
 				user.count()
 			}
 		game.send("GameResult", map[string]interface{}{
-			"Answer":     game.exam.ExamAnwser,
+			"Answer":     game.exam[1].AnswerId,
 			"IsOk":       isOk,
 			"UserId":     userId,
 			"UserAnswer": answer,
@@ -274,44 +260,37 @@ func (game *Game) submit(userId,answer int) {
 }
 
 // 获取当前答题的题目
-// 从mongodb中读取
-//
-// @TODO 考虑全部放到内存中
-func (game *Game) getExam() (model.Exam, error) {
-	examId := game.getRandExamId()
-	if examId == 0 { //已经完成所有题目
-		return model.Exam{}, ErrNotExam
-	}
-
-	exam, err := model.GetExam(examId)
-	if err != nil {
-		return model.Exam{}, err
+// 全部放到内存中
+func (game *Game) getExam() (model.KsQuestion, error) {
+	exam := game.getRandExamId()
+	if exam.AnswerId == 0 { //已经完成所有题目
+		return model.KsQuestion{}, ErrNotExam
 	}
 	return exam, nil
 }
 
 // 随机获取题目ID
 // 过滤掉该房间已经完成过的题目
-func (game *Game) getRandExamId() int {
+func (game *Game) getRandExamId() model.KsQuestion {
 	isNotList := false
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	num := len(h.examids)
-	if num == 0 || len(h.examids) == len(game.ExamList) {
-		return 0
+	num := len(game.examids)
+	if num == 0 || len(game.examids) == len(game.ExamList) {
+		return model.KsQuestion{}
 	}
 	for {
 		isNotList = false
-		examId := h.examids[r.Intn(num)]
+		examId := game.examids[r.Intn(num)]
 		for _, inExamId := range game.ExamList {
 			if examId == inExamId {
 				isNotList = true
 			}
 		}
 		if isNotList == false {
-			return examId
+			return game.exam[examId]
 		}
 	}
-	return 0
+	return model.KsQuestion{}
 }
 
 // 游戏结束
@@ -334,8 +313,7 @@ func (game *Game) clearGame() {
 	}
 
 	// 重置游戏状态
-	//game.rm = nil //房间信息
-	game.exam = model.Exam{}
+	game.exam = make(map[int]model.KsQuestion)
 	game.Status = 0
 }
 

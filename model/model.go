@@ -2,80 +2,51 @@ package model
 
 import (
 	"fmt"
-	"os"
-	"time"
-
-	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 
 var (
-	mondb  *mgo.Session
-	currdb *mgo.Database
-
+    Db     *gorm.DB
 )
 
-type Model struct {
-}
-
-func NewModel(url string) {
-	m := new(Model)
-	m.connect(url)
-}
-
-func (this *Model) connect(url string) {
-	mondb, err := mgo.Dial(url)
+func NewModel(url,user,pass ,port,db string) {
+	var err  error
+	dbUrl := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",user,pass,url,port,db)
+	Db, err = gorm.Open("mysql",dbUrl)
 	if err != nil {
-		fmt.Println("Mongo Connect Error: ", err)
-		os.Exit(-1)
+		fmt.Println("数据库链接失败")
+		panic(err)
 	}
-
-	//defer mondb.Close()
-
-	mondb.SetMode(mgo.Monotonic, true)
-	currdb = mondb.DB("Vckai")
 }
-
 
 type Users struct {
 	UserId      int
 	UserName    string
 }
 
-type Exam struct {
-	Id_          bson.ObjectId `bson:"_id"`
-	ExamId       int
-	ExamQuestion string
-	ExamOption   []string
-	ExamAnwser   int
-	ExamResolve  string
-	ExamTime     time.Time
+// 题库信息表
+type KsQuestion struct {
+	Id int `gorm:"column:id" db:"id" json:"id" form:"id"` //题目ID
+	QuestionTitle string `gorm:"column:question_title" db:"question_title" json:"question_title" form:"question_title"` //题目问题
+	QuestionContent string `gorm:"column:question_content" db:"question_content" json:"question_content" form:"question_content"` //题目说明
+	AnswerType int8 `gorm:"column:answer_type" db:"answer_type" json:"answer_type" form:"answer_type"` //答案类型(1 单选 2 判断 3 多选 )
+	Answers string `gorm:"column:answers" db:"answers" json:"answers" form:"answers"` //问题信息
+	AnswerId int `gorm:"column:answer_id" db:"answer_id" json:"answer_id" form:"answer_id"` //正确答案ID
 }
 
-/**
- * get all exam ids..
- */
-func GetAllExamId() ([]int, error) {
-	c := currdb.C("exam")
-	var result []Exam
-	err := c.Find(nil).Select(bson.M{"examid": 1}).All(&result)
-	if err != nil {
-		return []int{}, err
-	}
-	var ret []int
-	for _, v := range result {
-		ret = append(ret, v.ExamId)
-	}
-	fmt.Println(result)
-	return ret, nil
-}
 
 /**
- * get exam by examid.
+ * 查询所有的题目
  */
-func GetExam(examId int) (Exam, error) {
-	c := currdb.C("exam")
-	var result Exam
-	err := c.Find(bson.M{"examid": examId}).One(&result)
-	return result, err
+func GetAllExamId() (map[int]KsQuestion, error) {
+	var Exam []KsQuestion
+	res := make(map[int]KsQuestion,0)
+	Db.Table("ks_question").Where("special_id = 4 and status = 1").Order("RAND()").Limit(5).Find(&Exam)
+	for _, value := range Exam {
+		id := value.Id
+		res[id] = value
+	}
+	return res, nil
 }
+

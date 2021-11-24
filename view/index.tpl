@@ -89,15 +89,12 @@
 
         function ready() { //准备
             $("#user_" + userId + ' .gameStatus').html("准备中");
-            // var socket = new WebSocket("ws://" + host + "/ws?userId="+userId);
-            // socket.onopen = function(evt) {
-                socket.send('{"Action":"Ready","UserId":' + userId + ',"Params":{}}');
-            //}
+             socket.send('{"Action":"Ready","UserId":' + userId + ',"Params":{}}');
+
         }
 
         $("#outRoom").click(function () { //退出房间
             socket.send('{"Action":"OutRoom","UserId":' + userId + ',"Params":{}}');
-            window.location.reload();
         });
 
         ////加入房间socket接收
@@ -106,7 +103,6 @@
             $("#users .thumbnails").html("");
             var users = data.Params.Users;
             var otherUser;
-            var str;
             for(var i=0; i < users.length; i++) {
                 $("#users .thumbnails").append('<li class="text-center" id="user_{0}" style="{4}"><img class="thumbnail" data-src="/public/images/header.jpg" alt="{1}" src="/public/images/header.jpg">{2}<div class="gameStatus"></div><div id="lamp_{3}" class="lamp"></li>'.format(users[i].UserId, users[i].UserName, users[i].UserName, users[i].UserId, users[i].UserId != userId ? 'float:right; margin-right:20px;' : ''));
 
@@ -122,6 +118,7 @@
             }
 
             var str;
+            console.log("另一个人",otherUser);
             if( data.UserId == userId ) {
                 str = "您加入了房间";
             } else if( otherUser ) {
@@ -200,7 +197,7 @@
         }
         //退出房间
         function onOutRoom(data) {
-            window.location.reload();
+            window.location.href="http://"+host;
         }
 
         //结束游戏

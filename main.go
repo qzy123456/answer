@@ -16,7 +16,8 @@ func main() {
 
 	a := app.NewApp()
 
-	a.Route("POST,GET", "/", control.Index)
+	a.Route("GET", "/", control.Login)
+	a.Route("POST,GET", "/login/", control.Index)
 	a.Get("/ws/", control.Ws)
 
 	a.Static(func(context *app.Context) { //静态文件处理

@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"time"
 
 	"github.com/vckai/GoAnswer/model"
 
 	"github.com/bitly/go-simplejson"
+	"log"
 )
 
 var (
@@ -33,8 +35,39 @@ func GetServer() *hub {
 	return h
 }
 
+// 心跳检测
+func (this *hub) HeartBeat() {
+	fmt.Println("新设计的心跳包")
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			for userId,users := range this.onlineUsers {
+				c := this.getClient(userId)
+				fmt.Println("心跳包",c)
+				if c != nil {
+					//如果当前用户有问题，发送失败，那么就删除
+					if err := c.write(websocket.PingMessage, []byte{}); err != nil {
+						fmt.Println("失败了，要删除在线列表，", userId,users.RoomId)
+						//删除在线列表
+						delete(this.onlineUsers,userId)
+						//删除链接列表
+						delete(this.connections,userId)
+						//房间用户删除
+						this.rooms[users.RoomId].Game.GameOver(userId)
+					}
+				}
+			}
+		}
+	}
+}
+
 // 开始运行
 func (this *hub) run() {
+	//心跳包
+	go h.HeartBeat()
 	for {
 		select {
 		case c := <-this.register:  //登陆
@@ -66,8 +99,6 @@ func (this *hub) handle(param *simplejson.Json) {
 	switch param.Get("Action").MustString() {
 	case "Login": //登录
 		this.login(param)
-	case "JoinRoom": //加入房间
-		this.joinRoom(param)
 	case "Submit": //提交答案
 		this.submitAnswer(param)
 	case "OutRoom": //退出房间
@@ -92,16 +123,16 @@ func (this *hub) login(param *simplejson.Json) {
 	defer this.lock.Unlock()
 
 	userId, _ := param.Get("UserId").Int()
+	userName, _ := param.Get("UserName").String()
 
 	c, ok := this.notloginconns[userId]
 	if !ok {
 		fmt.Println("该用户尚未建立连接", userId)
 		return
 	}
-	user, err := model.GetUserById(userId)
-	if err != nil {
-		fmt.Println("没有查找到该用户", userId, err)
-		return
+	user := model.Users{
+		UserId:userId,
+		UserName:userName,
 	}
 
 	delete(this.notloginconns, userId)
@@ -110,7 +141,33 @@ func (this *hub) login(param *simplejson.Json) {
 	u := &onlineUser{user, 0} //在线用户信息, 房间ID
 
 	this.onlineUsers[userId] = u
-	fmt.Println("用户ID：", userId, "，姓名：", user.UserName, "，登录成功")
+	log.Println("用户ID：", userId, "，姓名：", user.UserName, "，登录成功")
+	//登陆成功 分配 加入房间
+
+	if u.RoomId > 0 { //该用户已经加入房间中了
+		fmt.Println("禁止重复进入房间", userId)
+		return
+	}
+	var err error
+	var rm *room
+	//查找房间
+	rm  = this.findRoom()
+	if rm == nil { //没有房间则新建一个
+		rm, err = NewRoom()
+		log.Printf("新创建一个房间%v",rm)
+		if err != nil {
+			fmt.Println("创建房间失败：", err)
+			return
+		}
+
+		this.rooms[rm.Id] = rm
+	}
+	if err := rm.addPlayer(userId); err != nil {
+		fmt.Println("添加用户进入房间失败：", userId, err)
+		return
+	}
+	this.onlineUsers[userId].RoomId = rm.Id
+	fmt.Println("用户加入房间成功：", rm.Id)
 }
 
 // 退出房间
@@ -160,43 +217,43 @@ func (this *hub) logout(c *Connection) {
 	close(c.send)
 }
 
-// 进入房间
-func (this *hub) joinRoom(param *simplejson.Json) error {
-	userId := param.Get("UserId").MustInt()
-
-	u, err := this.GetOnlineUser(userId)
-	if err != nil {
-		fmt.Println("用户UID", userId, err)
-		return err
-	}
-
-	if u.RoomId > 0 { //该用户已经加入房间中了
-		fmt.Println("禁止重复进入房间", userId)
-		return ErrUserInRoom
-	}
-
-	//查找房间
-	rm := this.findRoom()
-
-	if rm == nil { //没有房间则新建一个
-		rm, err = NewRoom()
-		if err != nil {
-			fmt.Println("创建房间失败：", err)
-			return err
-		}
-
-		this.rooms[rm.Id] = rm
-	}
-	if err := rm.addPlayer(userId); err != nil {
-		fmt.Println("添加用户进入房间失败：", userId, err)
-		return err
-	}
-	this.lock.Lock()
-	this.onlineUsers[userId].RoomId = rm.Id
-	this.lock.Unlock()
-
-	return nil
-}
+//// 进入房间
+//func (this *hub) joinRoom(param *simplejson.Json) error {
+//	userId := param.Get("UserId").MustInt()
+//
+//	u, err := this.GetOnlineUser(userId)
+//	if err != nil {
+//		fmt.Println("用户UID", userId, err)
+//		return err
+//	}
+//
+//	if u.RoomId > 0 { //该用户已经加入房间中了
+//		fmt.Println("禁止重复进入房间", userId)
+//		return ErrUserInRoom
+//	}
+//
+//	//查找房间
+//	rm := this.findRoom()
+//
+//	if rm == nil { //没有房间则新建一个
+//		rm, err = NewRoom()
+//		if err != nil {
+//			fmt.Println("创建房间失败：", err)
+//			return err
+//		}
+//
+//		this.rooms[rm.Id] = rm
+//	}
+//	if err := rm.addPlayer(userId); err != nil {
+//		fmt.Println("添加用户进入房间失败：", userId, err)
+//		return err
+//	}
+//	this.lock.Lock()
+//	this.onlineUsers[userId].RoomId = rm.Id
+//	this.lock.Unlock()
+//
+//	return nil
+//}
 
 // 提交答案
 func (this *hub) submitAnswer(param *simplejson.Json) error {
@@ -251,9 +308,6 @@ func (this *hub) ready(param *simplejson.Json) error {
 
 // 获取socket链接
 func (this *hub) getClient(userId int) *Connection {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
 	c, ok := this.connections[userId]
 	if !ok {
 		fmt.Println("没有获取到该socket")
@@ -263,8 +317,6 @@ func (this *hub) getClient(userId int) *Connection {
 }
 
 func (this *hub) GetOnlineUser(userId int) (*onlineUser, error) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
 
 	u, ok := this.onlineUsers[userId]
 	if !ok {
@@ -296,9 +348,7 @@ func (this *hub) addOnlineUser(user *onlineUser) error {
 
 // 查找未满人的房间
 func (this *hub) findRoom() *room {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
+    log.Printf("房间信息%v",this.rooms)
 	for _, val := range this.rooms {
 		if val.Game.Status == 0 && len(val.Game.Users) < roomMaxUser{
 			return val

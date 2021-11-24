@@ -55,7 +55,7 @@ type hub struct {
 	rooms         map[uint32]*room     //room 列表
 	examids       []int                //所有试卷题目id
 
-	lock sync.Mutex
+	lock sync.RWMutex
 }
 
 var h = &hub{
@@ -65,7 +65,7 @@ var h = &hub{
 	notloginconns: make(map[int]*Connection),
 	onlineUsers:   make(map[int]*onlineUser),
 	broadcast:     make(chan *simplejson.Json),
-	rooms:         make(map[uint32]*room),
+	rooms:         make(map[uint32]*room,10),
 }
 
 // 生成房间ID
@@ -77,8 +77,6 @@ func newRoomId() uint32 {
 
 // 初始化一个新连接
 func NewConn(userId int, ws *websocket.Conn) (*Connection, error) {
-	//如果当前用户拥有连接，那么替换
-
 	c := &Connection{
 		userId: userId,
 		ws:     ws,

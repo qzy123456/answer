@@ -43,10 +43,10 @@
     var userId = $("#userId").val();
     var host = "127.0.0.1:9999";
     $(document).ready(function() {
-        var socket = new WebSocket("ws://" + host + "/ws");
+        var socket = new WebSocket("ws://" + host + "/ws?userId="+userId);
         socket.onopen = function(evt) {
             console.log("socket连接成功");
-            socket.send('{"Action":"Login","UserId":' + userId + ',"Params":{}}');  //发送登录socket连接
+            socket.send('{"Action":"Login","UserId":' + userId + ',"UserName":"'+userName+'","Params":{}}');  //发送登录socket连接
         }
         socket.onclose = function(evt) {
             onDisconnect();

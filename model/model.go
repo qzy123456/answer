@@ -44,14 +44,8 @@ type Status struct {
 }
 
 type Users struct {
-	Id_         bson.ObjectId `bson:"_id"`
 	UserId      int
 	UserName    string
-	UserPwd     string
-	UserCoin    int
-	UserWin     int
-	UserLose    int
-	UserRegTime time.Time
 }
 
 type Exam struct {
@@ -62,57 +56,6 @@ type Exam struct {
 	ExamAnwser   int
 	ExamResolve  string
 	ExamTime     time.Time
-}
-
-func GetUserById(UserId int) (Users, error) {
-	c := currdb.C("users")
-	result := Users{}
-	err := c.Find(bson.M{"userid": UserId}).One(&result)
-	if err != nil {
-		return result, err
-	}
-	return result, nil
-}
-
-/**
- * 根据用户名获取用户信息
- */
-func GetUser(UserName string) (Users, error) {
-	c := currdb.C("users")
-	result := Users{}
-	err := c.Find(bson.M{"username": UserName}).One(&result)
-	if err != nil {
-		return result, err
-	}
-	return result, nil
-}
-
-/**
- * 注册一个用户
- */
-func AddUser(UserName, UserPwd string, UserCoin, UserWin, UserLose int) (int, error) {
-	c := currdb.C("users")
-	status := GetStatus()
-
-	index := status.UserIndex + 1
-
-	err := c.Insert(&Users{
-		Id_:         bson.NewObjectId(),
-		UserId:      index,
-		UserName:    UserName,
-		UserPwd:     UserPwd,
-		UserCoin:    UserCoin,
-		UserWin:     UserWin,
-		UserLose:    UserLose,
-		UserRegTime: time.Now(),
-	})
-
-	if err == nil { //UserId 累加
-		c2 := currdb.C("status")
-		c2.Update(nil, bson.M{"$inc": bson.M{"userindex": 1}})
-	}
-
-	return index, err
 }
 
 /**

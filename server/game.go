@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"sync"
 	"time"
@@ -25,7 +26,7 @@ type Game struct {
 	GameStart chan bool  //chan
 	Over      chan bool  //离开游戏chan
 
-	lock sync.Mutex
+	lock sync.RWMutex
 }
 
 // new game
@@ -53,25 +54,29 @@ func NewGame(r *room) *Game {
 
 // 添加一个玩家到房间中
 func (game *Game) addPlayer(userId int) error {
-		//初始化一个玩家
-		player, err := NewPlayer(userId)
-		if err != nil {
+	log.Printf("添加用户到房间中")
+	//初始化一个玩家
+	player, err := NewPlayer(userId)
+	if err != nil {
 		fmt.Println("创建游戏用户失败：", err)
 		return err
 	}
-		//加入到房间列表
-		game.Users = append(game.Users, player)
+	log.Printf("在线player%v",player)
+	//加入到房间列表
+	game.Users = append(game.Users, player)
 
-		var users []*onlineUser
-		for _, user := range game.Users { //返回给客户端的用户信息
+	var users []*onlineUser
+	for _, user := range game.Users { //返回给客户端的用户信息
+		log.Printf("在线puserr%v",user)
 		u, err := h.GetOnlineUser(user.UserId)
+		log.Printf("在线？%v",u)
 		if err != nil {
 			fmt.Println("获取在线用户失败：", err)
 			continue
 		}
 		users = append(users, u)
 	}
-
+   log.Printf("在线列表%v",users)
 	game.send("JoinRoom", map[string]interface{}{
 		"Room": map[string]interface{}{
 			"Id":     game.rm.Id,
@@ -83,6 +88,7 @@ func (game *Game) addPlayer(userId int) error {
 		},
 		"Users": users,
 	})
+	log.Printf("理论上发消息了")
 	// 用户进入房间首次自动准备
 	game.userReady(userId)
 
@@ -95,11 +101,14 @@ func (game *Game) userReady(userId int) error {
 	for _, user := range game.Users {
 		if userId == user.UserId {
 			user.ready(true)
-		} else {
-			isStart = user.Status
 		}
+		//else {
+		//	isStart = user.Status
+		//}
 	}
-
+    if len(game.Users) >= 2{
+    	isStart = true
+	}
 	game.send("Ready", map[string]interface{}{
 		"UserId": userId,
 	})
@@ -314,6 +323,7 @@ func (game *Game) send(action string, res map[string]interface{}) {
 		if user.UserId == 0 {
 			continue
 		}
+		log.Printf("发消息%v",user)
 		h.sendToClient(action, user.UserId, res)
 	}
 }

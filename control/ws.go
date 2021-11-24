@@ -13,7 +13,7 @@ import (
 // 建立websocket连接
 func Ws(context *app.Context) {
 
-	UserId := context.Cookie("UserId")
+	UserId := context.Request.FormValue("userId")
 	if UserId == "" {
 		fmt.Println("该用户没有登录")
 		context.Throw(403, "用户尚未登录")

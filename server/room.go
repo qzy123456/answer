@@ -33,7 +33,7 @@ func (r *room) userReady(userId int) error {
 }
 
 // 添加一个玩家到房间中
-func (r *room) addPlayer(userId int, arg ...bool) error {
+func (r *room) addPlayer(userId int) error {
 	err := r.Game.addPlayer(userId)
 	return err
 }

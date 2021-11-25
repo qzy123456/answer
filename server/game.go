@@ -23,12 +23,12 @@ type Game struct {
 	Status int8      //房间状态(0等待1游戏中2满人)
 
 	exam      map[int]model.KsQuestion //当前题目
-	ExamList  []int      //已完成的题库列表
-	Answer    chan string  //开始游戏chan
-	GameStart chan bool  //chan
-	Over      chan bool  //离开游戏chan
-	Winner    int        //房间内哪个uuid赢了
-	lock sync.RWMutex
+	ExamList  []int                    //已完成的题库列表
+	Answer    chan string              //开始游戏chan
+	GameStart chan bool                //chan
+	Over      chan int                 //离开游戏chan
+	Winner    int                      //房间内哪个uuid赢了
+	lock      sync.RWMutex
 }
 
 // new game
@@ -37,15 +37,15 @@ func NewGame(r *room) *Game {
 		Status:    0,
 		Answer:    make(chan string),
 		GameStart: make(chan bool),
-		Over:      make(chan bool),
+		Over:      make(chan int),
 		rm:        r,
 		ExamList:  make([]int, 0),
-		Users:     make([]*player,0),
-		exam:      make(map[int]model.KsQuestion,0),
+		Users:     make([]*player, 0),
+		exam:      make(map[int]model.KsQuestion, 0),
 		Winner:    -1,
 	}
 	//查询所有的题目
-    game.exam ,_ = model.GetAllExamId()
+	game.exam, _ = model.GetAllExamId()
 
 	go func(game *Game) {
 		for {
@@ -53,8 +53,8 @@ func NewGame(r *room) *Game {
 			if ok := <-game.GameStart; ok {
 				//没题目就要新随机题目
 				if len(game.exam) == 0 {
-					game.exam ,_ = model.GetAllExamId()
-					fmt.Println("从新加载题目了",game.exam)
+					game.exam, _ = model.GetAllExamId()
+					fmt.Println("从新加载题目了", game.exam)
 				}
 				game.playGame()
 			}
@@ -73,22 +73,22 @@ func (game *Game) addPlayer(userId int) error {
 		fmt.Println("创建游戏用户失败：", err)
 		return err
 	}
-	log.Printf("在线player%v",player)
+	log.Printf("在线player%v", player)
 	//加入到房间列表
 	game.Users = append(game.Users, player)
 
 	var users []*onlineUser
 	for _, user := range game.Users { //返回给客户端的用户信息
-		log.Printf("在线puserr%v",user)
+		log.Printf("在线puserr%v", user)
 		u, err := h.GetOnlineUser(user.UserId)
-		log.Printf("在线？%v",u)
+		log.Printf("在线？%v", u)
 		if err != nil {
 			fmt.Println("获取在线用户失败：", err)
 			continue
 		}
 		users = append(users, u)
 	}
-   log.Printf("在线列表%v",users)
+	log.Printf("在线列表%v", users)
 	game.send("JoinRoom", map[string]interface{}{
 		"Room": map[string]interface{}{
 			"Id":     game.rm.Id,
@@ -111,7 +111,6 @@ func (game *Game) addPlayer(userId int) error {
 func (game *Game) userReady(userId int) error {
 	isStart := false
 	//进房间自动准备
-
 	for _, user := range game.Users {
 		//自己准备
 		if userId == user.UserId {
@@ -121,11 +120,14 @@ func (game *Game) userReady(userId int) error {
 		}
 	}
 	//判断人数
-	if len(game.Users) >= 2 && isStart{
+	if len(game.Users) >= 2 && isStart {
 		isStart = true
 	}
+	u, _ := h.GetOnlineUser(userId)
+
 	game.send("Ready", map[string]interface{}{
-		"UserId": userId,
+		"UserId":   userId,
+		"UserName": u.UserName,
 	})
 	//一个人准备
 	//h.sendToClient("Ready", userId, map[string]interface{}{
@@ -162,13 +164,12 @@ func (game *Game) playGame() {
 	}
 	exam, err := game.getExam()
 	if err != nil {
-		fmt.Println("没有找到题目",err)
-		game.endGame()
+		fmt.Println("没有找到题目", err)
+		game.endGame(0)
 		return
 	}
 	// 添加该题进入过滤slice
 	game.ExamList = append(game.ExamList, exam.Id)
-
 
 	if game.Status == 0 { // 开始一局游戏
 		game.Status = 1 //更改房间游戏状态
@@ -183,30 +184,30 @@ func (game *Game) playGame() {
 		"Users":    game.Users,
 		"GameTime": playGameTime,
 	})
-   //20秒倒计时答题
+	//20秒倒计时答题
 	GameOutTime := playGameTime
 
 	timer := time.NewTimer(GameOutTime * time.Second)
 	for { //wait submit answer
 		select {
 		case answer := <-game.Answer:
-			ans := strings.Split(answer,",")
-			userId,_ :=  strconv.Atoi(ans[0])
-			questionId, _ :=  strconv.Atoi(ans[2])
-			answerId, _ :=  strconv.Atoi(ans[1])
+			ans := strings.Split(answer, ",")
+			userId, _ := strconv.Atoi(ans[0])
+			questionId, _ := strconv.Atoi(ans[2])
+			answerId, _ := strconv.Atoi(ans[1])
 			fmt.Println("提交答案", answerId)
 			fmt.Println("用户id", userId)
 			fmt.Println("答案id", questionId)
 
-			game.submit(userId,questionId,answerId)
+			game.submit(userId, questionId, answerId)
 			return
-		case <-game.Over: //游戏结束
+		case userId := <-game.Over: //游戏结束
 			fmt.Println("游戏结束")
-			game.endGame()
+			game.endGame(userId)
 			return
 		case <-timer.C: //游戏超时未提交答案，随机一个题？
 			fmt.Println("超时未答题")
-			game.endGame()
+			game.endGame(0)
 			return
 		}
 	}
@@ -218,32 +219,30 @@ func (game *Game) GameOver(userId int) {
 	var delkey int
 	for key, user := range game.Users {
 		if user.UserId == userId {
-			log.Printf("退出房间找到了%v"	,user.UserId)
+			log.Printf("退出房间找到了%v", user.UserId)
 			delkey = key
+		} else {
+			u, err := h.GetOnlineUser(userId)
+			if err != nil {
+				fmt.Println("获取用户失败：", err)
+				continue
+			}
+
+			if game.Status == 1 { // 游戏中的状态，如果是正在游戏中，那么直接判断对方赢
+				game.Over <- userId
+				h.sendToClient("GameOver", user.UserId, map[string]interface{}{
+					"OverUser":     userId,
+					"OverUserName": u.Users.UserName,
+				})
+			} else {
+				h.sendToClient("OutRoom", user.UserId, map[string]interface{}{
+					"OverUser":     userId,
+					"OverUserName": u.Users.UserName,
+				})
+			}
 		}
-		//else {
-			//log.Printf("退出房间没有找到")
-			//u, err := h.GetOnlineUser(userId)
-			//if err != nil {
-			//	fmt.Println("获取用户失败：", err)
-			//	continue
-			//}
-			//
-			//if game.Status == 1 { // 游戏中的状态
-			//	game.Over <- true
-			//	h.sendToClient("GameOver", user.UserId, map[string]interface{}{
-			//		"OverUser":     userId,
-			//		"OverUserName": u.Users.UserName,
-			//	})
-			//} else {
-			//	h.sendToClient("OutRoom", user.UserId, map[string]interface{}{
-			//		"OverUser":     userId,
-			//		"OverUserName": u.Users.UserName,
-			//	})
-			//}
-		//}
 	}
-	if delkey >= 0 && game.Users != nil{
+	if delkey >= 0 && game.Users != nil {
 		fmt.Println("将用户", userId, "从房间", game.rm.Id, "中移除")
 		game.Users = append(game.Users[:delkey], game.Users[delkey+1:]...)
 		if len(game.Users) == 0 {
@@ -253,8 +252,8 @@ func (game *Game) GameOver(userId int) {
 }
 
 // 提交答案
-func (game *Game) submit(userId,questionId,answerId int) {
-	log.Println(userId,questionId,answerId)
+func (game *Game) submit(userId, questionId, answerId int) {
+	log.Println(userId, questionId, answerId)
 	if game.Status != 1 {
 		fmt.Println("不在游戏中，请勿随便提交答案")
 		return
@@ -264,26 +263,26 @@ func (game *Game) submit(userId,questionId,answerId int) {
 	trueAnwer := -1
 	//循环题库
 	for _, value := range game.exam {
-		if questionId == value.Id && answerId == value.AnswerId{
+		if questionId == value.Id && answerId == value.AnswerId {
 			isOk = true
 			trueAnwer = answerId
 		}
 	}
 	isEnd := false //是否结束了
-    //把答过的题放到已完成列表
-    game.ExamList = append(game.ExamList,questionId)
+	//把答过的题放到已完成列表
+	game.ExamList = append(game.ExamList, questionId)
 	//下发消息，谁答了，是否答对
 	for _, user := range game.Users {
-		    //答对，并且是自己，那么自己答对的题目+1，答错，对方+1
-			if isOk == true {
-				if userId == user.UserId{
-					user.count()
-				}
-			} else { //对方加1
-				if userId != user.UserId{
-					user.count()
-				}
+		//答对，并且是自己，那么自己答对的题目+1，答错，对方+1
+		if isOk == true {
+			if userId == user.UserId {
+				user.count()
 			}
+		} else { //对方加1
+			if userId != user.UserId {
+				user.count()
+			}
+		}
 	}
 	//根据房间的人数循环发
 	game.send("GameResult", map[string]interface{}{
@@ -295,13 +294,13 @@ func (game *Game) submit(userId,questionId,answerId int) {
 
 	time.Sleep(3 * time.Second) //延时3秒, 让客户端等待缓冲
 
-    //检测是否要结束,题目都已经答完了，当前局结束
-	if len(game.ExamList) >= len(game.exam){
+	//检测是否要结束,题目都已经答完了，当前局结束
+	if len(game.ExamList) >= len(game.exam) {
 		isEnd = true
 	}
 
 	if isEnd == true { //结束一局游戏
-		game.endGame()
+		game.endGame(0)
 	} else { //重新开始游戏
 		game.playGame()
 	}
@@ -311,7 +310,7 @@ func (game *Game) submit(userId,questionId,answerId int) {
 // 全部放到内存中
 func (game *Game) getExam() (model.KsQuestion, error) {
 	exam := game.getRandExamId()
-	log.Printf("题目%v",exam)
+	log.Printf("题目%v", exam)
 	if exam.Id == 0 { //已经完成所有题目
 		return model.KsQuestion{}, ErrNotExam
 	}
@@ -337,7 +336,7 @@ func (game *Game) getRandExamId() model.KsQuestion {
 			}
 		}
 		if isNotList == false {
-			fmt.Println("随机一个题目？",ranId,exam)
+			fmt.Println("随机一个题目？", ranId, exam)
 			return game.exam[ranId]
 		}
 	}
@@ -345,13 +344,16 @@ func (game *Game) getRandExamId() model.KsQuestion {
 }
 
 // 游戏结束
-func (game *Game) endGame() {
+func (game *Game) endGame(userId int) {
+	winner := 0
+	if userId == 0 {
+		winner = game.CheckWinner()
 
-    winner := game.CheckWinner()
-	game.send("EndGame", map[string]interface{}{
-		"Users": game.Users,
-		"Winner": winner,
-	})
+		game.send("EndGame", map[string]interface{}{
+			"Users":  game.Users,
+			"Winner": winner,
+		})
+	}
 	//清空
 	game.clearGame()
 }
@@ -367,8 +369,8 @@ func (game *Game) clearGame() {
 	}
 
 	// 重置游戏状态,清空房间
-	game.exam = make(map[int]model.KsQuestion,0) //从新加载的题
-	game.ExamList = make([]int,0)                //历史完成的题
+	game.exam = make(map[int]model.KsQuestion, 0) //从新加载的题
+	game.ExamList = make([]int, 0)                //历史完成的题
 	game.Status = 0
 	game.Winner = -1
 }
@@ -386,19 +388,19 @@ func (game *Game) send(action string, res map[string]interface{}) {
 		if user.UserId == 0 {
 			continue
 		}
-		log.Printf("发消息%v",user)
+		log.Printf("发消息%v", user)
 		h.sendToClient(action, user.UserId, res)
 	}
 }
 
 //检测谁赢了
-func(game *Game) CheckWinner() int  {
-	if len(game.Users) >= 2{
+func (game *Game) CheckWinner() int {
+	if len(game.Users) >= 2 {
 		if game.Users[0].Count > len(game.exam)/2 {
 			game.Winner = game.Users[0].UserId
-		}else if game.Users[1].Count > len(game.exam)/2{
+		} else if game.Users[1].Count > len(game.exam)/2 {
 			game.Winner = game.Users[1].UserId
-		}else { //平局
+		} else { //平局
 			game.Winner = 0
 		}
 	}

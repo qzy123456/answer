@@ -69,7 +69,7 @@ func (c *Connection) WritePump() {
 				fmt.Println("写入socket失败", err)
 				return
 			}
-		case <-ticker.C:  //心跳包，
+		case <-ticker.C: //心跳包，
 			if err := c.write(websocket.PingMessage, []byte{}); err != nil {
 				fmt.Println("心跳包执行了", err)
 				return

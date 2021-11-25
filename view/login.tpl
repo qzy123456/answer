@@ -6,7 +6,7 @@
 </head>
 <body screen_capture_injected="true">
 <div class="container-fluid">
-    <form class="form-horizontal" method="post" action="/login/">
+    <form class="form-horizontal" method="post" action="/game/">
         <fieldset>
             <legend>用户昵称</legend>
             <div class="form-actions">

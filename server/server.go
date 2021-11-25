@@ -38,17 +38,17 @@ func (this *hub) HeartBeat() {
 	for {
 		select {
 		case <-ticker.C:
-			for userId,users := range this.onlineUsers {
+			for userId, users := range this.onlineUsers {
 				c := this.getClient(userId)
-				fmt.Println("心跳包",c)
+				fmt.Println("心跳包", c)
 				if c != nil {
 					//如果当前用户有问题，发送失败，那么就删除
 					if err := c.write(websocket.PingMessage, []byte{}); err != nil {
-						fmt.Println("失败了，要删除在线列表，", userId,users.RoomId)
+						fmt.Println("失败了，要删除在线列表，", userId, users.RoomId)
 						//删除在线列表
-						delete(this.onlineUsers,userId)
+						delete(this.onlineUsers, userId)
 						//删除链接列表
-						delete(this.connections,userId)
+						delete(this.connections, userId)
 						//房间用户删除
 						this.rooms[users.RoomId].Game.GameOver(userId)
 					}
@@ -64,9 +64,9 @@ func (this *hub) run() {
 	go h.HeartBeat()
 	for {
 		select {
-		case c := <-this.register:  //登陆
+		case c := <-this.register: //登陆
 			this.reg(c)
-		case c := <-this.unregister:  //退出
+		case c := <-this.unregister: //退出
 			this.logout(c)
 		case param := <-this.broadcast: //消息
 			this.handle(param)
@@ -125,8 +125,8 @@ func (this *hub) login(param *simplejson.Json) {
 		return
 	}
 	user := model.Users{
-		UserId:userId,
-		UserName:userName,
+		UserId:   userId,
+		UserName: userName,
 	}
 
 	u := &onlineUser{user, 0} //在线用户信息, 房间ID
@@ -142,10 +142,10 @@ func (this *hub) login(param *simplejson.Json) {
 	var err error
 	var rm *room
 	//查找房间
-	rm  = this.findRoom()
+	rm = this.findRoom()
 	if rm == nil { //没有房间则新建一个
 		rm, err = NewRoom()
-		log.Printf("新创建一个房间%v",rm)
+		log.Printf("新创建一个房间%v", rm)
 		if err != nil {
 			fmt.Println("创建房间失败：", err)
 			return
@@ -234,10 +234,10 @@ func (this *hub) submitAnswer(param *simplejson.Json) error {
 		return ErrRoomNotExists
 	}
 	//打印一下用户回答了问题
-	log.Println("用户回答了问题",userId,answerId,questionId)
+	log.Println("用户回答了问题", userId, answerId, questionId)
 	//拼成一个字符串
-	answer := fmt.Sprintf("%d,%d,%d",userId,answerId,questionId)
-    log.Printf("用户上传答案%s",answer)
+	answer := fmt.Sprintf("%d,%d,%d", userId, answerId, questionId)
+	log.Printf("用户上传答案%s", answer)
 	r.Game.Answer <- answer
 
 	return nil
@@ -286,16 +286,17 @@ func (this *hub) GetOnlineUser(userId int) (*onlineUser, error) {
 	return u, nil
 }
 
-func (this *hub) DelOnlineUser(userId int)  {
+func (this *hub) DelOnlineUser(userId int) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
 	_, ok := this.onlineUsers[userId]
 	if ok {
-		delete(this.onlineUsers,userId)
+		delete(this.onlineUsers, userId)
 	}
 
 }
+
 // 添加用户到在线列表中
 func (this *hub) addOnlineUser(user *onlineUser) error {
 	this.lock.Lock()
@@ -308,9 +309,9 @@ func (this *hub) addOnlineUser(user *onlineUser) error {
 
 // 查找未满人的房间
 func (this *hub) findRoom() *room {
-    log.Printf("房间信息%v",this.rooms)
+	log.Printf("房间信息%v", this.rooms)
 	for _, val := range this.rooms {
-		if val.Game.Status == 0 && len(val.Game.Users) < roomMaxUser{
+		if val.Game.Status == 0 && len(val.Game.Users) < roomMaxUser {
 			return val
 		}
 	}

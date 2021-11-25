@@ -18,7 +18,7 @@ func main() {
 	a := app.NewApp()
 
 	a.Route("GET", "/", control.Login)
-	a.Route("POST,GET", "/login/", control.Index)
+	a.Route("POST,GET", "/game/", control.Index)
 	a.Get("/ws/", control.Ws)
 
 	a.Static(func(context *app.Context) { //静态文件处理
@@ -49,9 +49,9 @@ func main() {
 		a.Config().MustValue("mysql_pass", "root"),
 		a.Config().MustValue("mysql_port", "3306"),
 		a.Config().MustValue("mysql_db", "examination"),
-		) //连接到mysql
+	) //连接到mysql
 
 	server.InitServer()
-    fmt.Println(model.GetAllExamId())
+	fmt.Println(model.GetAllExamId())
 	a.Run()
 }

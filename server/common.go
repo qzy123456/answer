@@ -12,16 +12,16 @@ import (
 )
 
 const (
-	writeWait                     = 10 * time.Second
-	pongWait                      = 30 * time.Second
-	pingPeriod                    =  (pongWait *9) /10
-	messageSize                   = 512
-	roomMaxUser                   = 2
-	playGameTime    time.Duration = 5 //每局游戏时间
+	writeWait                  = 10 * time.Second
+	pongWait                   = 30 * time.Second
+	pingPeriod                 = (pongWait * 9) / 10
+	messageSize                = 512
+	roomMaxUser                = 2
+	playGameTime time.Duration = 5 //每局游戏时间
 )
 
 var (
-	roomInc     uint32 = 1        //房间ID流水号
+	roomInc uint32 = 1 //房间ID流水号
 )
 
 // 连接管理
@@ -46,23 +46,23 @@ type onlineUser struct {
 }
 
 type hub struct {
-	register      chan *Connection   //登陆时候的channel
-	unregister    chan *Connection   //退出登陆的chanel
-	connections   map[int]*Connection  //登陆成功的连接
-	broadcast     chan *simplejson.Json  //消息
-	onlineUsers   map[int]*onlineUser   //在线用户
-	rooms         map[uint32]*room     //room 列表
+	register    chan *Connection      //登陆时候的channel
+	unregister  chan *Connection      //退出登陆的chanel
+	connections map[int]*Connection   //登陆成功的连接
+	broadcast   chan *simplejson.Json //消息
+	onlineUsers map[int]*onlineUser   //在线用户
+	rooms       map[uint32]*room      //room 列表
 
 	lock sync.RWMutex
 }
 
 var h = &hub{
-	register:      make(chan *Connection),
-	unregister:    make(chan *Connection),
-	connections:   make(map[int]*Connection),
-	onlineUsers:   make(map[int]*onlineUser),
-	broadcast:     make(chan *simplejson.Json),
-	rooms:         make(map[uint32]*room,10),
+	register:    make(chan *Connection),
+	unregister:  make(chan *Connection),
+	connections: make(map[int]*Connection),
+	onlineUsers: make(map[int]*onlineUser),
+	broadcast:   make(chan *simplejson.Json),
+	rooms:       make(map[uint32]*room, 10),
 }
 
 // 生成房间ID

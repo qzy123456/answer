@@ -15,6 +15,7 @@
 <button id="outRoom" type="button" class="btn btn-warning">退出房间</button>
 <input type="hidden" id="userName" value="{{ .userName}}">
 <input type="hidden" id="userId" value="{{ .userId}}">
+<input type="hidden" id="questionId" value="">
 <div id="main">
     <div class="a">
         <div id="users">  <!-- 用户列表 -->
@@ -28,6 +29,7 @@
     <legend></legend>
     <div id="examMain">
         <div id="examTitle" class="text-center"></div>
+        <div id="examImg" class="text-center"></div>
         <div id="examOption"></div>
     </div>   <!-- 答题处理 -->
 </div>
@@ -134,18 +136,27 @@
             gameStatus = true;
             $(".gameStatus").html('游戏中');
 
-            for(var i = 0; i < data.Params.Users.length; i++) {
-                $("#lamp_" + data.Params.Users[i].UserId).html("");
-                for( var j = 0; j < data.Params.Users[i].Views; j++ ) {
-                    $("#lamp_" + data.Params.Users[i].UserId).append("<i></i>");
-                }
-            }
+            // for(var i = 0; i < data.Params.Users.length; i++) {
+            //     $("#lamp_" + data.Params.Users[i].UserId).html("");
+            //     for( var j = 0; j < data.Params.Users[i].Views; j++ ) {
+            //         $("#lamp_" + data.Params.Users[i].UserId).append("<i></i>");
+            //     }
+            // }
             $("#examMain").show();
-            $("#examTitle").html("<h1>{0}</h1>".format(data.Params.Exam.ExamQuestion));
+            $("#examTitle").html("<h1>{0}</h1>".format(data.Params.Exam.question_title));
             $("#examOption").html("");  //清空
+            $("#examImg").html("");  //清空
+            if(data.Params.Exam.question_question_img.length > 0){
+                $("#examImg").html("<img src={0}/>".format(data.Params.Exam.question_question_img));
+            }
+            $("#questionId").val("");
             var isAct = true;
-            for(var i = 0; i < data.Params.Exam.ExamOption.length; i++) {
-                $("#examOption").append('<button aid="{0}" type="button" class="btn btn-large exmp {1}">{2}</button>'.format(i, isAct ? 'submit' : 'disabled', data.Params.Exam.ExamOption[i]));
+            var answers =  data.Params.Exam.answers;
+            answers = answers.substring(1,answers.length-1)
+            var option = answers.split(",");
+            $("#questionId").val(data.Params.Exam.id);
+            for(var i = 0; i < option.length; i++) {
+                $("#examOption").append('<button aid="{0}" type="button" class="btn btn-large exmp {1}">{2}</button>'.format(i, isAct ? 'submit' : 'disabled', option[i]));
             }
             showTime(data.Params.GameTime);
 
@@ -154,7 +165,10 @@
                 $("#examOption button").removeClass("submit");
                 $("#examOption buttom").attr("onclick", "");
                 console.log("提交答案");
-                socket.send('{"Action":"Submit","UserId":' + userId + ',"Params":{"AnswerId": '+$(this).attr("aid")+'}}');
+                //拼接答案
+                var questionId = $("#questionId").val();
+
+                socket.send('{"Action":"Submit","UserId":' + userId + ',"Params":{"AnswerId": '+$(this).attr("aid")+',"QuestionId":'+questionId+'}}');
             });
         }
 
@@ -179,10 +193,10 @@
             TkBox && TkBox.hide();
             $("#examOption button[aid="+data.Params.Answer+"]").addClass("btn-success");
             if(data.Params.IsOk == true) {
-                TkBox = $.ThinkBox.success(data.Params.UserId == userId ? '恭喜你答对了' : '答对了', {'delayClose':1000});
+                TkBox = $.ThinkBox.success(data.Params.UserId == userId ? '恭喜你答对了' : '对方答对了', {'delayClose':1000});
             } else {
                 $("#examOption button[aid="+data.Params.UserAnswer+"]").addClass("btn-danger");
-                TkBox = $.ThinkBox.error(data.Params.UserId == userId ? '对不起你答错了' : '答错了', {'delayClose':1000});
+                TkBox = $.ThinkBox.error(data.Params.UserId == userId ? '对不起你答错了' : '对方答错了', {'delayClose':1000});
             }
         }
         //退出游戏
@@ -205,6 +219,7 @@
             console.log("end",data)
             TkBox && TkBox.hide();
             var users = data.Params.Users;
+            var Winner = data.Params.Winner;
             gameStatus = false;
             GameTimeStop = true;
             $(".gameStatus").html('尚未准备');
@@ -214,13 +229,15 @@
                 if( users[i+1].Status == 1 ) {  //机器人自动准备
                     $("#user_" + users[i+1].UserId + " .gameStatus").html('准备中');
                 }
-                if( users[i].UserId == userId) {
-                    if(users[i].UserId == userId)
+                if( Winner == userId) {
                         $("#lamp_" + users[i+1].UserId).html("");
-                    else
                         $("#lamp_" + users[i].UserId).html("");
                     gameEndDialog('恭喜 ，你赢了！！ ^_^');
-                } else {
+                }else if(Winner == 0){
+                        $("#lamp_" + users[i+1].UserId).html("");
+                        $("#lamp_" + users[i].UserId).html("");
+                    gameEndDialog('平局！！ ^_^');
+                }else {
                     $("#lamp_" + userId).html("");
                     gameEndDialog('::>_<::，你输了');
                 }

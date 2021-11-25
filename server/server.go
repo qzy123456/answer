@@ -209,48 +209,11 @@ func (this *hub) logout(c *Connection) {
 	close(c.send)
 }
 
-//// 进入房间
-//func (this *hub) joinRoom(param *simplejson.Json) error {
-//	userId := param.Get("UserId").MustInt()
-//
-//	u, err := this.GetOnlineUser(userId)
-//	if err != nil {
-//		fmt.Println("用户UID", userId, err)
-//		return err
-//	}
-//
-//	if u.RoomId > 0 { //该用户已经加入房间中了
-//		fmt.Println("禁止重复进入房间", userId)
-//		return ErrUserInRoom
-//	}
-//
-//	//查找房间
-//	rm := this.findRoom()
-//
-//	if rm == nil { //没有房间则新建一个
-//		rm, err = NewRoom()
-//		if err != nil {
-//			fmt.Println("创建房间失败：", err)
-//			return err
-//		}
-//
-//		this.rooms[rm.Id] = rm
-//	}
-//	if err := rm.addPlayer(userId); err != nil {
-//		fmt.Println("添加用户进入房间失败：", userId, err)
-//		return err
-//	}
-//	this.lock.Lock()
-//	this.onlineUsers[userId].RoomId = rm.Id
-//	this.lock.Unlock()
-//
-//	return nil
-//}
-
 // 提交答案
 func (this *hub) submitAnswer(param *simplejson.Json) error {
 	userId := param.Get("UserId").MustInt()
 	answerId := param.Get("Params").Get("AnswerId").MustInt()
+	questionId := param.Get("Params").Get("QuestionId").MustInt() //回答哪个问题
 	if userId == 0 {
 		fmt.Println("接口参数错误", userId, answerId)
 		return ErrApiParam
@@ -270,12 +233,17 @@ func (this *hub) submitAnswer(param *simplejson.Json) error {
 		fmt.Println("获取房间失败：", user.RoomId)
 		return ErrRoomNotExists
 	}
-	r.Game.Answer <- userId*10000+answerId
+	//打印一下用户回答了问题
+	log.Println("用户回答了问题",userId,answerId,questionId)
+	//拼成一个字符串
+	answer := fmt.Sprintf("%d,%d,%d",userId,answerId,questionId)
+    log.Printf("用户上传答案%s",answer)
+	r.Game.Answer <- answer
 
 	return nil
 }
 
-// 用户准备
+// 用户准备,在房间内没退出，直接开始下一场。
 func (this *hub) ready(param *simplejson.Json) error {
 	userId := param.Get("UserId").MustInt()
 	if userId == 0 {
@@ -363,7 +331,6 @@ func (this *hub) getRoom(roomId uint32) *room {
 func (this *hub) getRooms() map[uint32]*room {
 	this.lock.Lock()
 	defer this.lock.Unlock()
-
 	return this.rooms
 }
 
@@ -371,10 +338,7 @@ func (this *hub) getRooms() map[uint32]*room {
 func (this *hub) delRoom(roomId uint32, rebUserId int) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
-
-	fmt.Println("删除房间", roomId, "删除机器人信息", roomId)
 	delete(this.rooms, roomId)
-	delete(this.onlineUsers, rebUserId) //删除机器人用户信息
 }
 
 // 发送消息到指定客户端

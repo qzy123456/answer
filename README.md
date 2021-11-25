@@ -5,7 +5,7 @@ Go Answer
 
 安装：
 --------------------
-    go get github.com/vckai/GoAnswer
+    go get github.com/chaoyang/answer
 
 说明
 --------------------

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/vckai/GoAnswer/app"
-	"github.com/vckai/GoAnswer/server"
+	"github.com/chaoyang/answer/app"
+	"github.com/chaoyang/answer/server"
 
 	"github.com/gorilla/websocket"
 )

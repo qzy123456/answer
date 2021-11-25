@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/vckai/GoAnswer/model"
+	"github.com/chaoyang/answer/model"
 
 	"github.com/bitly/go-simplejson"
 	"github.com/gorilla/websocket"

@@ -7,10 +7,10 @@ import (
 	"path"
 	"strings"
 
-	"github.com/vckai/GoAnswer/app"
-	"github.com/vckai/GoAnswer/control"
-	"github.com/vckai/GoAnswer/model"
-	"github.com/vckai/GoAnswer/server"
+	"github.com/chaoyang/answer/app"
+	"github.com/chaoyang/answer/control"
+	"github.com/chaoyang/answer/model"
+	"github.com/chaoyang/answer/server"
 )
 
 func main() {

@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/websocket"
 	"time"
 
-	"github.com/vckai/GoAnswer/model"
+	"github.com/chaoyang/answer/model"
 
 	"github.com/bitly/go-simplejson"
 	"log"

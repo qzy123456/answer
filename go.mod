@@ -1,4 +1,4 @@
-module github.com/vckai/GoAnswer
+module github.com/chaoyang/answer
 
 go 1.13
 

@@ -1,7 +1,7 @@
 package control
 
 import (
-	"github.com/vckai/GoAnswer/app"
+	"github.com/chaoyang/answer/app"
 	"time"
 )
 

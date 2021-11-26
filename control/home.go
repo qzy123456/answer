@@ -20,7 +20,7 @@ func Index(context *app.Context) {
 
 }
 
-// 首页
+// 表单，用来起名字
 func Login(context *app.Context) {
 	context.Render("login", map[string]interface{}{})
 }

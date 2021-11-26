@@ -21,8 +21,7 @@ type ConfigFile struct {
 /**
  * 加载配置文件初始化函数
  *
- * @author Vckai.
- * @date   2014-04-03
+ * @author chaoyang.
  */
 func LoadConfigFile(fileName string, moreFiles ...string) *ConfigFile {
 	fileNames := make([]string, 1, len(moreFiles)+1)

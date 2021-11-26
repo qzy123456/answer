@@ -4,18 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gorilla/websocket"
-	"time"
-
-	"github.com/chaoyang/answer/model"
-
 	"github.com/bitly/go-simplejson"
+	"github.com/chaoyang/answer/model"
+	"github.com/gorilla/websocket"
 	"log"
+	"time"
 )
 
 var (
 	ErrNotExistsOnlineUser = errors.New("没有找到该用户")
-	ErrUserInRoom          = errors.New("该用户已经在房间内")
 	ErrApiParam            = errors.New("接口参数错误")
 	ErrUserNotExtsisRoom   = errors.New("用户不在房间中")
 	ErrRoomNotExists       = errors.New("房间不存在")

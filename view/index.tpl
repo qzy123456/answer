@@ -174,15 +174,18 @@
         function showTime(GameTime) {
             $("#timer").show();
             GameTimeStop = false;
-            duration = GameTime * 1000 - 100;
-            endTime = new Date().getTime() + duration + 100;
+            duration = GameTime * 1000;
+            endTime  = new Date().getTime() + duration ;
             interval();
         }
 
         function interval() {
-            var n = (endTime - new Date().getTime()) / 1000;
-            if (n < 0 || GameTimeStop == true) return;
-            document.getElementById("timer").innerHTML = n.toFixed(3);
+            var n=(endTime-new Date().getTime())/1000;
+            if(n<0 || GameTimeStop == true) {
+                document.getElementById("timer").innerHTML = '0.00';
+                return;
+            }
+            document.getElementById("timer").innerHTML = n.toFixed(2);
             setTimeout(interval, 10);
         }
 

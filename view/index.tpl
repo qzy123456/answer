@@ -212,7 +212,14 @@
 
         //退出房间
         function onOutRoom(data) {
-            window.location.href = "http://" + host;
+            TkBox && TkBox.hide();
+            if(data.Params.OverUser == userId) {
+               window.location.href = "http://"+host
+            } else {
+                $("#user_" + data.Params.OverUser).remove();
+
+                $.ThinkBox.success('用户' + data.Params.OverUserName + '退出了房间', {'modal': false});
+            }
         }
 
         //结束游戏

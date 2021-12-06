@@ -8,6 +8,7 @@ import (
 
 var (
 	Db *gorm.DB
+	maxNum int = 5   //题量
 )
 
 func NewModel(url, user, pass, port, db string) {
@@ -42,7 +43,9 @@ type KsQuestion struct {
 func GetAllExamId() (map[int]KsQuestion, error) {
 	var Exam []KsQuestion
 	res := make(map[int]KsQuestion, 0)
-	Db.Table("ks_question").Where("special_id = 4 and status = 1").Order("RAND()").Limit(1).Find(&Exam)
+	for len(Exam) < maxNum {
+		Db.Table("ks_question").Where("special_id = 4 and status = 1").Order("RAND()").Limit(maxNum).Find(&Exam)
+	}
 	for key, value := range Exam {
 		res[key] = value
 	}

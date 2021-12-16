@@ -81,6 +81,7 @@
         }
         $("#userName").val(userName);
         $("#add-name").modal("hide");
+        //开始socket
         sockets();
     }
 
@@ -147,7 +148,7 @@
                     var users = data.Params.Users;
                     var otherUser;
                     for (var i = 0; i < users.length; i++) {
-                        $("#users .thumbnails").append('<li class="text-center" id="user_{0}" style="{4}"><img class="thumbnail" data-src="/public/images/header.jpg" alt="{1}" src="/public/images/header.jpg"><span>{2}</span><div class="gameStatus"></div><div id="lamp_{3}" class="lamp"></li>'.format(users[i].UserId, users[i].UserName, users[i].UserName, users[i].UserId, users[i].UserId != userId ? 'float:right; margin-right:20px;' : ''));
+                        $("#users .thumbnails").append('<li class="text-center" id="user_{0}" style="{4}"><img class="thumbnail" data-src="/public/images/header-{5}.jpeg" alt="{1}" src="/public/images/header-{5}.jpeg"><span>{2}</span><div class="gameStatus"></div><div id="lamp_{3}" class="lamp"></li>'.format(users[i].UserId, users[i].UserName, users[i].UserName, users[i].UserId, users[i].UserId != userId ? 'float:right; margin-right:20px;' : '',users[i].HeaderIndex));
 
                         if (users[i].UserId != userId) {
                             otherUser = users[i];

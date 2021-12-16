@@ -24,6 +24,7 @@ func NewModel(url, user, pass, port, db string) {
 type Users struct {
 	UserId   int
 	UserName string
+	HeaderIndex int
 }
 
 // 题库信息表

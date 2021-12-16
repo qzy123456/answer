@@ -8,6 +8,7 @@ import (
 	"github.com/chaoyang/answer/model"
 	"github.com/gorilla/websocket"
 	"log"
+	"math/rand"
 	"time"
 )
 
@@ -112,7 +113,9 @@ func (this *hub) reg(c *Connection) {
 func (this *hub) login(param *simplejson.Json) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
-
+	rand.Seed(time.Now().UnixNano())
+	//随机头像
+	headInt := rand.Intn(22)
 	userId, _ := param.Get("UserId").Int()
 	userName, _ := param.Get("UserName").String()
 
@@ -124,6 +127,7 @@ func (this *hub) login(param *simplejson.Json) {
 	user := model.Users{
 		UserId:   userId,
 		UserName: userName,
+		HeaderIndex: headInt,
 	}
 
 	u := &onlineUser{user, 0} //在线用户信息, 房间ID

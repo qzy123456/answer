@@ -85,7 +85,7 @@ $(document).ready(function() {
     for(var i=0; i < users.length; i++) {
       $("#users .thumbnails").append('' +
           '<li class="text-center" id="user_{0}" style="{4}">' +
-          '<img class="thumbnail" data-src="/public/images/header.jpg" alt="{1}" src="/public/images/header.jpg">{2}' +
+          '<img class="thumbnail" data-src="/public/images/header-0.jpeg" alt="{1}" src="/public/images/header-0.jpeg">{2}' +
           '<div class="gameStatus"></div><div id="lamp_{3}" class="lamp"></li>'.format(users[i].UserId, users[i].UserName, users[i].UserName, users[i].UserId, users[i].UserId != userId ? 'float:right; margin-right:20px;' : ''));
 
       if( users[i].UserId != userId ) {

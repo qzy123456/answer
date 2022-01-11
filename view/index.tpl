@@ -188,11 +188,13 @@
                     $("#questionId").val("");
                     var isAct = true;
                     var answers = data.Params.Exam.answers;
-                    answers = answers.substring(1, answers.length - 1)
+                    answers = answers.substring(1, answers.length - 1);
                     var option = answers.split(",");
                     $("#questionId").val(data.Params.Exam.id);
                     for (var i = 0; i < option.length; i++) {
-                        $("#examOption").append('<button aid="{0}" type="button" class="btn btn-large exmp {1}">{2}</button>'.format(i, isAct ? 'submit' : 'disabled', option[i]));
+                        //去除两端引号
+                        var opt = option[i].substring(1,option[i].length-1);
+                        $("#examOption").append('<button aid="{0}" type="button" class="btn btn-large exmp {1}">{2}</button>'.format(i, isAct ? 'submit' : 'disabled', opt));
                     }
                     showTime(data.Params.GameTime);
 

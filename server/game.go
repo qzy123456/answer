@@ -207,7 +207,9 @@ func (game *Game) playGame() {
 			return
 		case <-timer.C: //游戏超时未提交答案，随机一个题？
 			fmt.Println("超时未答题")
-			game.endGame(0)
+			//game.endGame(0)
+			//继续游戏，直到没题，或者人退出
+			game.playGame()
 			return
 		}
 	}

@@ -40,12 +40,13 @@ type KsQuestion struct {
 
 /**
  * 查询所有的题目
+ * 只要单选和判断
  */
 func GetAllExamId() (map[int]KsQuestion, error) {
 	var Exam []KsQuestion
 	res := make(map[int]KsQuestion, 0)
 	for len(Exam) < maxNum {
-		Db.Table("ks_question").Where("special_id = 4 and status = 1").Order("RAND()").Limit(maxNum).Find(&Exam)
+		Db.Table("ks_question").Where("answer_type in (1,2) and status = 1").Order("RAND()").Limit(maxNum).Find(&Exam)
 	}
 	for key, value := range Exam {
 		res[key] = value

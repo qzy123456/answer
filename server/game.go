@@ -271,8 +271,8 @@ func (game *Game) submit(userId, questionId, answerId int) {
 		}
 	}
 	isEnd := false //是否结束了
-	//把答过的题放到已完成列表
-	game.ExamList = append(game.ExamList, questionId)
+	//把答过的题放到已完成列表，之前随机的时候已经加过了
+	//game.ExamList = append(game.ExamList, questionId)
 	//下发消息，谁答了，是否答对
 	for _, user := range game.Users {
 		//答对，并且是自己，那么自己答对的题目+1，答错，对方+1
@@ -294,7 +294,7 @@ func (game *Game) submit(userId, questionId, answerId int) {
 		"UserAnswer": answerId,
 	})
 
-	time.Sleep(3 * time.Second) //延时3秒, 让客户端等待缓冲
+	time.Sleep(2 * time.Second) //延时3秒, 让客户端等待缓冲
 
 	//检测是否要结束,题目都已经答完了，当前局结束
 	if len(game.ExamList) >= len(game.exam) {
@@ -302,6 +302,7 @@ func (game *Game) submit(userId, questionId, answerId int) {
 	}
 
 	if isEnd == true { //结束一局游戏
+	  fmt.Println("结束了？",game.ExamList ,game.exam)
 		game.endGame(0)
 	} else { //重新开始游戏
 		game.playGame()
@@ -312,7 +313,7 @@ func (game *Game) submit(userId, questionId, answerId int) {
 // 全部放到内存中
 func (game *Game) getExam() (model.KsQuestion, error) {
 	exam := game.getRandExamId()
-	log.Printf("题目%v", exam)
+	fmt.Println("题目", exam)
 	if exam.Id == 0 { //已经完成所有题目
 		return model.KsQuestion{}, ErrNotExam
 	}
@@ -331,6 +332,7 @@ func (game *Game) getRandExamId() model.KsQuestion {
 	for {
 		isNotList = false
 		ranId := r.Intn(len(game.exam))
+		fmt.Println("随机到了id",ranId)
 		exam := game.exam[ranId]
 		for _, inExamId := range game.ExamList {
 			if exam.Id == inExamId {
@@ -397,6 +399,7 @@ func (game *Game) send(action string, res map[string]interface{}) {
 
 //检测谁赢了
 func (game *Game) CheckWinner() int {
+	fmt.Println("检测睡赢哦",len(game.exam),len(game.Users))
 	if len(game.Users) >= 2 {
 		if game.Users[0].Count > len(game.exam)/2 {
 			game.Winner = game.Users[0].UserId

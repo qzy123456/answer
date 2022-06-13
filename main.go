@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"path"
@@ -9,7 +8,6 @@ import (
 
 	"github.com/chaoyang/answer/app"
 	"github.com/chaoyang/answer/control"
-	"github.com/chaoyang/answer/model"
 	"github.com/chaoyang/answer/server"
 )
 
@@ -43,14 +41,8 @@ func main() {
 		http.ServeFile(context.Response, context.Request, url)
 		context.IsEnd = true
 	})
-	model.NewModel(a.Config().MustValue("mysql_url", "127.0.0.1"),
-		a.Config().MustValue("mysql_user", "root"),
-		a.Config().MustValue("mysql_pass", "root"),
-		a.Config().MustValue("mysql_port", "3306"),
-		a.Config().MustValue("mysql_db", "examination"),
-	) //连接到mysql
+
 
 	server.InitServer()
-	fmt.Println(model.GetAllExamId())
 	a.Run()
 }

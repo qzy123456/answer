@@ -213,10 +213,10 @@ func (this *hub) logout(c *Connection) {
 // 提交答案
 func (this *hub) submitAnswer(param *simplejson.Json) error {
 	userId := param.Get("UserId").MustInt()
-	answerId := param.Get("Params").Get("AnswerId").MustInt()
-	questionId := param.Get("Params").Get("QuestionId").MustInt() //回答哪个问题
+	X := param.Get("Params").Get("X").MustInt() //x轴
+	Y := param.Get("Params").Get("Y").MustInt() //y轴
 	if userId == 0 {
-		fmt.Println("接口参数错误", userId, answerId)
+		fmt.Println("接口参数错误", userId)
 		return ErrApiParam
 	}
 	fmt.Println(this.onlineUsers)
@@ -234,10 +234,10 @@ func (this *hub) submitAnswer(param *simplejson.Json) error {
 		fmt.Println("获取房间失败：", user.RoomId)
 		return ErrRoomNotExists
 	}
-	//打印一下用户回答了问题
-	log.Println("用户回答了问题", userId, answerId, questionId)
+	//打印用户骡子
+	log.Println("用户落子", userId, X, Y)
 	//拼成一个字符串
-	answer := fmt.Sprintf("%d,%d,%d", userId, answerId, questionId)
+	answer := fmt.Sprintf("%d,%d,%d", userId, X, Y)
 	log.Printf("用户上传答案%s", answer)
 	r.Game.Answer <- answer
 

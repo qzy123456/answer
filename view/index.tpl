@@ -1,7 +1,7 @@
 <!DOCTYPE "html">
 <head>
     <meta charset="utf-8">
-    <title>双人答题对战</title>
+    <title>五子棋对战</title>
     <script type="text/javascript" src="/public/javascripts/jquery.min.js"></script>
     <script type="text/javascript" src="/public/javascripts/jquery.cookie.js"></script>
     <script src="/public/javascripts/bootstrap.min.js"></script>
@@ -11,6 +11,13 @@
     <link rel="stylesheet" type="text/css" href="/public/javascripts/thinkbox/thinkbox.css"/>
 
 </head>
+<style>
+    canvas{
+        display: block;
+        margin: 50px auto;
+        box-shadow: -2px -2px 2px #EFEFEF,5px 5px 5px #B9B9B9;
+    }
+</style>
 <body>
 <button id="outRoom" type="button" class="btn btn-warning">退出房间</button>
 <input type="hidden" id="userName" value="">
@@ -26,13 +33,12 @@
             </div>
         </div>
         <div id="timer">50</div>
+        <div style="text-align: center"><h1 id="shows"></h1></div>
     </div>
     <legend></legend>
     <div id="examMain">
-        <div id="examTitle" class="text-center"></div>
-        <div id="examImg" class="text-center"></div>
-        <div id="examOption"></div>
-    </div>   <!-- 答题处理 -->
+        <canvas id="chess" width="450px" height="450px"></canvas>
+    </div>
 </div>
 <div class="modal fade send-pop" id="add-name" tabindex="-1" role="dialog"
      aria-labelledby="send-res">
@@ -70,6 +76,36 @@
     var userName = $("#userName").val();
     var userId = $("#userId").val();
     var host = $("#Host").val();
+    var isAct;
+    var chessBox = [];
+    var chess = document.getElementById('chess');
+    var context = chess.getContext('2d');
+    context.strokeStyle = "#BFBFBF";
+    var logo= new Image();
+    var gameStatus = false,
+        GameTimeStop = false,
+        TkBox;
+    logo.src = "public/images/木头.jpeg";
+    logo.onload = function(){
+        context.drawImage(logo,0,0,450,450);
+        drawChessBoard();
+    };
+    function drawChessBoard(){
+        for(var i=0;i<15;i++){
+            chessBox[i]=[];
+            for(var j=0;j<15;j++){
+                chessBox[i][j]=0;
+            }
+        }
+        for(var i=0;i<15;i++){
+            context.moveTo(15+i*30,15);
+            context.lineTo(15+i*30,435);
+            context.moveTo(15,15+i*30);
+            context.lineTo(435,15+i*30);
+            context.stroke();
+        }
+
+    }
     //起名字
     function addName() {
         $("#submit-family-star").attr({ "disabled": "disabled" });
@@ -100,9 +136,6 @@
                     console.log("接收到Socket信息：");
                     console.log(data)
                     switch (data.Action) {
-                        case "offline":
-                            onOnline(data);
-                            break;
                         case "JoinRoom":
                             onJoinRoom(data);
                             break;
@@ -127,9 +160,7 @@
                     }
                 }
 
-                var gameStatus = false,
-                    GameTimeStop = false,
-                    TkBox;
+
 
                 function ready() { //准备
                     $("#user_" + userId + ' .gameStatus').html("准备中");
@@ -169,45 +200,54 @@
                         str = "玩家" + otherUser.UserName + "加入了房间";
                     }
                     str && $.ThinkBox.success(str, {'modal': false});
+                    chessBox = [];
+                    var logo= new Image();
+                    logo.src = "public/images/木头.jpeg";
+                    logo.onload = function(){
+                        context.drawImage(logo,0,0,450,450);
+                        drawChessBoard();
+                    };
                 }
 
                 ////开始游戏
                 function onPlayGame(data) {
+                    console.log("服务器返回数据",data.Params)
                     TkBox && TkBox.hide();
 
                     gameStatus = true;
                     $(".gameStatus").html('游戏中');
 
                     $("#examMain").show();
-                    $("#examTitle").html("<h1>{0}</h1>".format(data.Params.Exam.question_title));
-                    $("#examOption").html("");  //清空
-                    $("#examImg").html("");  //清空
-                    if (data.Params.Exam.question_img.length > 0) {
-                        $("#examImg").html("<img src={0}>".format(data.Params.Exam.question_img));
-                    }
-                    $("#questionId").val("");
-                    var isAct = true;
-                    var answers = data.Params.Exam.answers;
-                    answers = answers.substring(1, answers.length - 1);
-                    var option = answers.split(",");
-                    $("#questionId").val(data.Params.Exam.id);
-                    for (var i = 0; i < option.length; i++) {
-                        //去除两端引号
-                        var opt = option[i].substring(1,option[i].length-1);
-                        $("#examOption").append('<button aid="{0}" type="button" class="btn btn-large exmp {1}">{2}</button>'.format(i, isAct ? 'submit' : 'disabled', opt));
-                    }
+
                     showTime(data.Params.GameTime);
-
-                    $(".submit").bind("click", function () { //提交答案
-                        TkBox = $.ThinkBox.loading('正在提交答案...');
-                        $("#examOption button").removeClass("submit");
-                        $("#examOption buttom").attr("onclick", "");
-                        console.log("提交答案");
-                        //拼接答案
-                        var questionId = $("#questionId").val();
-
-                        socket.send('{"Action":"Submit","UserId":' + userId + ',"Params":{"AnswerId": ' + $(this).attr("aid") + ',"QuestionId":' + questionId + '}}');
-                    });
+                    isAct = getIsAct(data.Params.Users);
+                    //该此用户下
+                    console.log("当前用户信息",isAct);
+                    if(isAct.IsAct && isAct.UserId == userId){
+                        $("#shows").html("该你落子!")
+                    }else {
+                        $("#shows").html("")
+                    }
+                    //Hand: 1
+                    //IsAct: true
+                   // Status: true
+                   // UserId: 1655106139
+                    chess.onclick = function(e){
+                        if(isAct === false){
+                            console.log("不改你下")
+                            return;
+                        }
+                        var x = e.offsetX;
+                        var y = e.offsetY;
+                        var i = Math.floor(x/30); //i,j为索引序列号
+                        var j = Math.floor(y/30);
+                        if(chessBox[i][j]==0){
+                            oneStep(i,j,isAct.Hand);
+                            chessBox[i][j]=isAct.Hand;
+                            console.log("棋盘",chessBox)
+                            socket.send('{"Action":"Submit","UserId":' + userId + ',"Params":{"X": ' + i + ',"Y":' + j + '}}');
+                        }
+                    }
                 }
 
                 var duration, endTime;
@@ -230,27 +270,32 @@
                     setTimeout(interval, 10);
                 }
 
-                //答案提交验证
+                //服务器下发另外一个用户
                 function onGameResult(data) {
-                    GameTimeStop = true
-                    TkBox && TkBox.hide();
-                    $("#examOption button[aid=" + data.Params.Answer + "]").addClass("btn-success");
-                    if (data.Params.IsOk == true) {
-                        TkBox = $.ThinkBox.success(data.Params.UserId == userId ? '恭喜你答对了' : '对方答对了', {'delayClose': 1000});
-                    } else {
-                        $("#examOption button[aid=" + data.Params.UserAnswer + "]").addClass("btn-danger");
-                        TkBox = $.ThinkBox.error(data.Params.UserId == userId ? '对不起你答错了' : '对方答错了', {'delayClose': 1000});
-                    }
+                    //{"Action":"GameResult","UserId":1655107294,"Params":{"Hand":1,"UserId":1655107294,"X":4,"Y":4},"Time":1655107334}
+                    var x = data.Params.X;
+                    var y = data.Params.Y;
+                    oneStep(x,y,data.Params.Hand);
+                    chessBox[x][y]=data.Params.Hand;
                 }
 
                 //退出游戏
                 function onGameOver(data) {
                     TkBox && TkBox.hide();
                     GameTimeStop = true;
-                    $("#user_" + data.Params.OverUser).remove();
+                    // {"Action":"GameOver","UserId":1655110358,"Params":{"OverUser":1655110353,"OverUserName":"1111"},"Time":1655110581}
+                     $("#user_" + data.Params.OverUser).remove();
+                    $("#shows").html("");
                     $.ThinkBox.success('用户' + data.Params.OverUserName + '退出了房间', {'modal': false});
                     $("#user_" + userId + " .gameStatus").html('<a href="javascript:ready();">开始游戏</a>');
                     $("#examMain").hide();
+                    chessBox = [];
+                    var logo= new Image();
+                    logo.src = "public/images/木头.jpeg";
+                    logo.onload = function(){
+                        context.drawImage(logo,0,0,450,450);
+                        drawChessBoard();
+                    };
                     gameEndDialog('恭喜 ，你赢了！！ ^_^');
                 }
 
@@ -270,13 +315,18 @@
                 function onEndGame(data) {
                     console.log("end", data)
                     TkBox && TkBox.hide();
+                    //{"Action":"EndGame","UserId":1655110358,
+                    // "Params":{"Users":[{"UserId":1655110358,"Hand":2,"Status":true,"IsAct":false}],"W5110353},
+                    // "Time":1655110581}
+
                     var users = data.Params.Users;
                     var Winner = data.Params.Winner;
                     gameStatus = false;
                     GameTimeStop = true;
                     $(".gameStatus").html('尚未准备');
+                    $("#shows").html("")
                     $("#user_" + userId + " .gameStatus").html('<a href="javascript:ready();">开始游戏</a>');
-                    $("#examMain").hide();
+
                     for (var i = 0; i < users.length; i++) {
                         if (users[i + 1].Status == 1) {  //机器人自动准备
                             $("#user_" + users[i + 1].UserId + " .gameStatus").html('准备中');
@@ -295,6 +345,12 @@
                         }
                         break;
                     }
+                    var logo= new Image();
+                    logo.src = "public/images/木头.jpeg";
+                    logo.onload = function(){
+                        context.drawImage(logo,0,0,450,450);
+                        drawChessBoard();
+                    };
                 }
 
                 function gameEndDialog(str) {
@@ -302,7 +358,6 @@
                         "ok": function () {
                             this.hide();
                             $("#timer").hide();
-                            $("#examMain").hide();
                             $(".lamp").html("");
                             ready();
                         },
@@ -322,7 +377,7 @@
 
                 //接收准备消息
                 function onReady(data) {
-                    console.log(data.Params)
+                    console.log("ready",data.Params)
                     $("#user_" + data.Params.UserId + ' .gameStatus').html("准备中");
                 }
 
@@ -343,4 +398,108 @@
 
     });
 
+
+    var oneStep = function(i,j,me){
+        context.beginPath();
+        context.arc(15+i*30,15+j*30,13,0,2*Math.PI);
+        context.closePath();
+        var gradient = context.createRadialGradient(15+i*30,15+j*30,13,15+i*30,15+j*30,0);
+        if(me === 1){
+            gradient.addColorStop(0,"#0A0A0A");
+            gradient.addColorStop(1,"#636766");
+        }else{
+            gradient.addColorStop(0,"#D1D1D1");
+            gradient.addColorStop(1,"#F9F9F9");
+        }
+
+        context.fillStyle = gradient;
+        context.fill();
+    };
+
+
+    // var computerAI = function(){
+    //     var myScore = [];
+    //     var computerScore = [];
+    //     var max = 0; //保存最高分数；
+    //     var u = 0, v =0; //保存坐标
+    //     for(var i=0;i<15;i++){
+    //         myScore[i] = [];
+    //         computerScore [i] = [];
+    //         for(var j=0;j<15;j++){
+    //             myScore[i][j] = 0;
+    //             computerScore[i][j] = 0;
+    //         }
+    //     }
+    //     for (var i=0; i<15;i++) {
+    //         for (var j=0;j<15;j++) {
+    //             if(chessBox[i][j] == 0){
+    //                 for(var k =0 ;k<count;k++){
+    //                     if(wins[i][j][k]){
+    //                         if(myWin[k]==1){
+    //                             myScore[i][j]+= 200;
+    //                         }else if(myWin[k]==2){
+    //                             myScore[i][j]+= 400;
+    //                         }else if(myWin[k]==3){
+    //                             myScore[i][j]+= 2000;
+    //                         }else if(myWin[k]==4){
+    //                             myScore[i][j]+= 10000;
+    //                         }
+    //                         if(computerWin[k]==1){
+    //                             computerScore[i][j]+= 220;
+    //                         }else if(computerWin[k]==2){
+    //                             computerScore[i][j]+= 420;
+    //                         }else if(computerWin[k]==3){
+    //                             computerScore[i][j]+= 2020;
+    //                         }else if(computerWin[k]==4){
+    //                             computerScore[i][j]+= 10020;
+    //                         }
+    //                     }
+    //                 }
+    //                 if(myScore[i][j]>max){
+    //                     max = myScore[i][j];
+    //                     u = i;
+    //                     v = j;
+    //                 }else if(myScore[i][j] == max){
+    //                     if(computerScore[i][j] > computerScore[u][v]){
+    //                         u = i;
+    //                         v = j;
+    //                     }
+    //                 }
+    //                 if(computerScore[i][j]>max){
+    //                     max = computerScore[i][j];
+    //                     u = i;
+    //                     v = j;
+    //                 }else if(computerScore[i][j] == max){
+    //                     if(myScore[i][j] > myScore[u][v]){
+    //                         u = i;
+    //                         v = j;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     oneStep(u,v,false);
+    //     chessBox[u][v] = 2;
+    //     for(var k=0;k < count; k++){
+    //         if(wins[u][v][k]) {
+    //             computerWin[k]++;
+    //             myWin[k] = 6; //设置异常值
+    //             if(computerWin[k] == 5) {
+    //                 window.alert("计算机赢了");
+    //                 over = true;
+    //             }
+    //         }
+    //     }
+    //     if(!over){
+    //         me=!me;
+    //     }
+    // }
+    function getIsAct(users) {
+        for(var i = 0; i < users.length; i++) {
+            if(users[i].IsAct == true && users[i].UserId == userId) {
+                return users[i];
+            }
+        }
+        return false;
+    }
 </script>

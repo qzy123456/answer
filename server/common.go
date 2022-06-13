@@ -17,7 +17,7 @@ const (
 	pingPeriod                 = (pongWait * 9) / 10
 	messageSize                = 512
 	roomMaxUser                = 2
-	playGameTime time.Duration = 20 //每局游戏时间
+	playGameTime time.Duration = 60 //每步游戏时间
 )
 
 var (

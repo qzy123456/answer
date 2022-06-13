@@ -33,7 +33,7 @@
             </div>
         </div>
         <div id="timer">50</div>
-        <div style="text-align: center"><h1 id="shows"></h1></div>
+        <div style="text-align: center"><h5 id="shows" style="color: red;">等待匹配对手...</h5></div>
     </div>
     <legend></legend>
     <div id="examMain">
@@ -226,7 +226,7 @@
                     if(isAct.IsAct && isAct.UserId == userId){
                         $("#shows").html("该你落子!")
                     }else {
-                        $("#shows").html("")
+                        $("#shows").html("等待对方落子!")
                     }
                     //Hand: 1
                     //IsAct: true
@@ -285,7 +285,7 @@
                     GameTimeStop = true;
                     // {"Action":"GameOver","UserId":1655110358,"Params":{"OverUser":1655110353,"OverUserName":"1111"},"Time":1655110581}
                      $("#user_" + data.Params.OverUser).remove();
-                    $("#shows").html("");
+                    $("#shows").html("等待匹配对手...");
                     $.ThinkBox.success('用户' + data.Params.OverUserName + '退出了房间', {'modal': false});
                     $("#user_" + userId + " .gameStatus").html('<a href="javascript:ready();">开始游戏</a>');
                     $("#examMain").hide();
@@ -324,7 +324,7 @@
                     gameStatus = false;
                     GameTimeStop = true;
                     $(".gameStatus").html('尚未准备');
-                    $("#shows").html("")
+                    $("#shows").html("等待匹配对手...")
                     $("#user_" + userId + " .gameStatus").html('<a href="javascript:ready();">开始游戏</a>');
 
                     for (var i = 0; i < users.length; i++) {

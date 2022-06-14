@@ -183,7 +183,7 @@
                     $("#examOption").html("");  //清空
                     $("#examImg").html("");  //清空
                     if (data.Params.Exam.question_img.length > 0) {
-                        $("#examImg").html("<img src={0}>".format(data.Params.Exam.question_img));
+                        $("#examImg").html("<img src={0}>".format("http://www.exam.com"+data.Params.Exam.question_img));
                     }
                     $("#questionId").val("");
                     var isAct = true;

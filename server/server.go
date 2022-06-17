@@ -115,7 +115,7 @@ func (this *hub) login(param *simplejson.Json) {
 	defer this.lock.Unlock()
 	rand.Seed(time.Now().UnixNano())
 	//随机头像
-	headInt := rand.Intn(22)
+	headInt := rand.Intn(21) + 1
 	userId, _ := param.Get("UserId").Int()
 	userName, _ := param.Get("UserName").String()
 
